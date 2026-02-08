@@ -5,6 +5,8 @@
 const PlayerUIComponent = require('./../lib/player_ui_component');
 const Utils = require('./../lib/utils');
 const Comment = require('./comment');
+const { htmlToEl, addClass, removeClass, css, scrollTop, outerWidth, position, offset, innerWidth, innerHeight, qs, qsa, closest, append, before, remove, setHtml, getVal } = require('../lib/dom');
+const { sharedManager: eventManager } = require('../lib/events');
 
 const commentListTemplateName = 'comment_list';
 const newCommentTemplateName = 'new_comment';
@@ -21,43 +23,32 @@ module.exports = class CommentList extends PlayerUIComponent {
     this.sortComments();
   }
 
-  // Serialize object
+  // Serialize as W3C reply annotations
   get data() {
     return this.comments.map(c => c.data);
   }
 
+  // Internal data for non-API use
+  get _internalData() {
+    return this.comments.map(c => c._internalData);
+  }
+
   // Bind all events needed for the comment list
   bindListEvents() {
-    this.$el
-      .on('click.vac-comment', '.vac-close-comment-list', () => this.annotation.close()) // Hide CommentList UI with close button
-      .on('click.vac-comment', '.vac-reply-btn', this.addNewComment.bind(this)) // Open new reply UI with reply button
-      .on(
-        'click.vac-comment',
-        '.vac-delete-annotation',
-        this.handleDeleteAnnotationClick.bind(this)
-      ) // Delete annotation with main delete button
-      .on('click.vac-comment', '.vac-delete-comment', this.destroyComment.bind(this)) // Delete comment with delete comment button
-      .on('click.vac-comment', '.vac-edit-annotation', this.handleEditAnnotationClick_.bind(this)) // Edit annotation
-      .on(
-        'mousewheel.vac-comment DOMMouseScroll.vac-comment',
-        '.vac-comments-wrap',
-        this.disablePageScroll.bind(this)
-      ); // Prevent outer page scroll when scrolling inside of the CommentList UI
+    eventManager.on(this.el, 'click.vac-comment', '.vac-close-comment-list', () => this.annotation.close());
+    eventManager.on(this.el, 'click.vac-comment', '.vac-reply-btn', this.addNewComment.bind(this));
+    eventManager.on(this.el, 'click.vac-comment', '.vac-delete-annotation', this.handleDeleteAnnotationClick.bind(this));
+    eventManager.on(this.el, 'click.vac-comment', '.vac-delete-comment', this.destroyComment.bind(this));
+    eventManager.on(this.el, 'click.vac-comment', '.vac-edit-annotation', this.handleEditAnnotationClick_.bind(this));
+    eventManager.on(this.el, 'mousewheel.vac-comment', '.vac-comments-wrap', this.disablePageScroll.bind(this));
+    eventManager.on(this.el, 'DOMMouseScroll.vac-comment', '.vac-comments-wrap', this.disablePageScroll.bind(this));
   }
 
   // Bind event listeners for new comments form
   bindCommentFormEvents() {
-    this.$newCommentForm
-      .on(
-        'click.vac-comment',
-        '.vac-add-controls a, .vac-video-write-new.vac-is-comment a',
-        this.closeNewComment.bind(this)
-      ) // Cancel new comment creation with cancel link
-      .on(
-        'click.vac-comment',
-        '.vac-video-write-new.vac-is-comment button',
-        this.saveNewComment.bind(this)
-      ); // Save new comment with save button
+    if (!this.newCommentFormEl) return;
+    eventManager.on(this.newCommentFormEl, 'click.vac-comment', '.vac-add-controls a, .vac-video-write-new.vac-is-comment a', this.closeNewComment.bind(this));
+    eventManager.on(this.newCommentFormEl, 'click.vac-comment', '.vac-video-write-new.vac-is-comment button', this.saveNewComment.bind(this));
   }
 
   // Render CommentList UI with all comments using template
@@ -68,20 +59,18 @@ module.exports = class CommentList extends PlayerUIComponent {
     const allowEdit = this.plugin.options.allowEdit && (!this.plugin.options.restrictEditToOwner || isOwner);
     const allowDelete = this.plugin.options.allowDelete && (!this.plugin.options.restrictDeleteToOwner || isOwner);
 
-    this.$el = $(
-      this.renderTemplate(commentListTemplateName, {
-        commentsHTML: this.comments.map(c => Utils.sanitizeCommentHTML(c.HTML)),
-        rangeStr: this.plugin.options.frameRate
-          ? Utils.humanTimeFrames(this.annotation.range, this.plugin.options.frameRate)
-          : Utils.humanTime(this.annotation.range),
-        allowEdit,
-        allowDelete
-      })
-    );
-
-    this.$player.append(this.$el);
+    const html = this.renderTemplate(commentListTemplateName, {
+      commentsHTML: this.comments.map(c => Utils.sanitizeCommentHTML(c.HTML)),
+      rangeStr: this.plugin.options.frameRate
+        ? Utils.humanTimeFrames(this.annotation.range, this.plugin.options.frameRate)
+        : Utils.humanTime(this.annotation.range),
+      allowEdit,
+      allowDelete
+    });
+    this.el = htmlToEl(html, true);
+    append(this.player.el(), this.el);
     this.invalidateUICache();
-    this.$wrap = this.$UI.commentsContainer;
+    this.wrapEl = this.$UI.commentsContainer;
     this.bindListEvents();
   }
 
@@ -93,26 +82,27 @@ module.exports = class CommentList extends PlayerUIComponent {
 
   // Render new comment form
   addNewComment() {
-    this.$wrap
-      .addClass(this.UI_CLASSES.active)
-      .find('.vac-comments-wrap')
-      .scrollTop(999999);
-    const $shapebox = this.$wrap.find('.vac-add-new-shapebox');
-    const width = $shapebox.outerWidth();
-    const top = $shapebox.position().top + 10;
-    const right = this.$wrap.outerWidth() - ($shapebox.position().left + width);
+    addClass(this.wrapEl, this.UI_CLASSES.active);
+    const commentsWrap = qs(this.wrapEl, '.vac-comments-wrap');
+    if (commentsWrap) scrollTop(commentsWrap, 999999);
+    const shapebox = qs(this.wrapEl, '.vac-add-new-shapebox');
+    const width = outerWidth(shapebox);
+    const pos = position(shapebox);
+    const top = pos.top + 10;
+    const right = outerWidth(this.wrapEl) - (pos.left + width);
 
-    this.$newCommentForm = $(this.renderTemplate(newCommentTemplateName, { width, top, right }));
+    const formHtml = this.renderTemplate(newCommentTemplateName, { width, top, right });
+    this.newCommentFormEl = htmlToEl(formHtml, true);
     this.bindCommentFormEvents();
-    this.$player.append(this.$newCommentForm);
+    append(this.player.el(), this.newCommentFormEl);
   }
 
   // Save comment from new comment form, update state and re-render UI
   saveNewComment() {
-    this.$wrap.removeClass(this.UI_CLASSES.active);
+    removeClass(this.wrapEl, this.UI_CLASSES.active);
 
     const user_id = 1;
-    const body = this.$UI.newCommentTextarea.val();
+    const body = getVal(this.$UI.newCommentTextarea);
 
     if (!body) return; // empty comment - TODO add validation / err message
     this.createComment(body);
@@ -135,17 +125,20 @@ module.exports = class CommentList extends PlayerUIComponent {
 
   // Append a single comment to the list without full re-render
   appendComment(comment) {
-    if (!this.$el) return this.reRender(false);
+    if (!this.el) return this.reRender(false);
     const sanitizedHTML = Utils.sanitizeCommentHTML(comment.HTML);
-    const $comment = $(sanitizedHTML);
-    this.$el.find('.vac-reply-btn').before($comment);
+    const commentEl = htmlToEl(sanitizedHTML, true);
+    const replyBtn = qs(this.el, '.vac-reply-btn');
+    if (replyBtn) before(commentEl, replyBtn);
   }
 
   // Cancel comment adding process
   closeNewComment() {
     this.unbindCommentFormEvents();
-    if (this.$wrap) this.$wrap.removeClass(this.UI_CLASSES.active);
-    if (this.$newCommentForm) this.$newCommentForm.remove();
+    if (this.wrapEl) removeClass(this.wrapEl, this.UI_CLASSES.active);
+    if (this.newCommentFormEl) remove(this.newCommentFormEl);
+    this.newCommentFormEl = null;
+    this.$newCommentForm = null;
   }
 
   // Delete a comment. If it is the only comment, delete the annotation
@@ -167,36 +160,31 @@ module.exports = class CommentList extends PlayerUIComponent {
   }
 
   findCommentId(event) {
-    const id =
-      typeof event.detail.id === 'undefined'
-        ? $(event.target)
-            .closest('.vac-comment')
-            .data('id')
-        : event.detail.id;
-    return id;
+    if (typeof event.detail.id !== 'undefined') return event.detail.id;
+    const target = event.target;
+    const commentEl = closest(target, '.vac-comment');
+    return commentEl ? commentEl.getAttribute('data-id') : null;
   }
 
   // Prevents outer page scroll when at the top or bottom of CommentList UI
   // TODO: This might need to be fine-tuned?
   disablePageScroll(event) {
-    const $target = $(event.currentTarget);
-    const height = $target.height();
-    const ogEvent = event.originalEvent;
+    const target = event.currentTarget;
+    const height = target.offsetHeight;
+    const ogEvent = event;
     const delta = ogEvent.wheelDelta || -ogEvent.detail;
     const dir = delta < 0 ? 'down' : 'up';
-    const scrollDiff = Math.abs(
-      event.currentTarget.scrollHeight - event.currentTarget.clientHeight
-    );
+    const scrollDiff = Math.abs(target.scrollHeight - target.clientHeight);
 
     // if scrolling into top of div
-    if ($target.scrollTop() < 20 && dir == 'up') {
-      event.currentTarget.scrollTo({ top: 0, behavior: 'smooth' });
+    if (target.scrollTop < 20 && dir == 'up') {
+      target.scrollTo({ top: 0, behavior: 'smooth' });
       event.preventDefault();
     }
 
     // if scrolling into bottom of div
-    if ($target.scrollTop() > scrollDiff - 10 && dir == 'down') {
-      event.currentTarget.scrollTo({ top: height + 40, behavior: 'smooth' });
+    if (target.scrollTop > scrollDiff - 10 && dir == 'down') {
+      target.scrollTo({ top: height + 40, behavior: 'smooth' });
       event.preventDefault();
     }
   }
@@ -215,26 +203,26 @@ module.exports = class CommentList extends PlayerUIComponent {
 
   // Delete the annotation
   handleDeleteAnnotationClick(e) {
-    const $confirmEl = $('<a/>')
-      .addClass('vac-delete-confirm')
-      .text('CONFIRM');
-    $confirmEl.on('click.comment', () => {
-      $confirmEl.off('click.comment');
+    const confirmEl = document.createElement('a');
+    confirmEl.className = 'vac-delete-confirm';
+    confirmEl.textContent = 'CONFIRM';
+    eventManager.on(confirmEl, 'click.comment', () => {
+      eventManager.off(confirmEl, '.comment');
       this.annotation.teardown();
     });
-    $(e.target).replaceWith($confirmEl);
+    e.target.replaceWith(confirmEl);
   }
 
   // Unbind listeners for new comments form
   unbindCommentFormEvents() {
-    if (this.$newCommentForm) this.$newCommentForm.off('click.vac-comment');
+    if (this.newCommentFormEl) eventManager.off(this.newCommentFormEl, '.vac-comment');
   }
 
   // Teardown CommentList UI, unbind events
   teardown(destroyComments = true) {
     this.closeNewComment();
-    if (this.$el) {
-      this.$el.off('click.vac-comment mousewheel.vac-comment DOMMouseScroll.vac-comment');
+    if (this.el) {
+      eventManager.off(this.el, '.vac-comment');
     }
     this.comments.forEach(c => c.teardown(destroyComments));
     if (destroyComments) this.comments = [];

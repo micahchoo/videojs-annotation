@@ -6,6 +6,8 @@
 const Utils = require('./../lib/utils');
 const PlayerComponent = require('./../lib/player_component');
 const Annotation = require('./annotation');
+const { sharedManager: eventManager } = require('../lib/events');
+const { isW3CFormat, fromW3CCollection, fromW3C, toW3CCollection } = require('../lib/w3c');
 
 module.exports = class AnnotationState extends PlayerComponent {
   constructor(player) {
@@ -31,6 +33,10 @@ module.exports = class AnnotationState extends PlayerComponent {
 
   // Sets _annotations w/Annoation objects from input array
   set annotations(annotationsData) {
+    // Auto-detect W3C format and convert
+    if (annotationsData.length && isW3CFormat(annotationsData[0])) {
+      annotationsData = fromW3CCollection(annotationsData);
+    }
     this._annotations = annotationsData.map(a => {
       if (a.range) a.range = Utils.validateRange(a.range);
       if (a.shape) a.shape = Utils.validateShape(a.shape);
@@ -55,9 +61,18 @@ module.exports = class AnnotationState extends PlayerComponent {
     return this._activeAnnotation || { close: () => {} };
   }
 
-  // Serialize data
+  // Serialize data as W3C Web Annotation collection
   get data() {
-    return this._annotations.map(a => a.data);
+    return toW3CCollection(
+      this._annotations.map(a => a._internalData),
+      this.plugin.videoSrc,
+      this.plugin.options.idPrefix
+    );
+  }
+
+  // Internal data for non-API use
+  get _internalData() {
+    return this._annotations.map(a => a._internalData);
   }
 
   // Bind events for setting liveAnnotation on video time change
@@ -83,6 +98,11 @@ module.exports = class AnnotationState extends PlayerComponent {
   // Create and add a annotation
   createAndAddAnnotation(data) {
     this.plugin.controls.uiState.adding && this.plugin.controls.cancelAddNew();
+
+    // Auto-detect W3C format for single annotation
+    if (isW3CFormat(data)) {
+      data = fromW3C(data);
+    }
 
     if (data.range) data.range = Utils.validateRange(data.range);
     if (data.shape) data.shape = Utils.validateShape(data.shape);
@@ -111,7 +131,7 @@ module.exports = class AnnotationState extends PlayerComponent {
     annotation.secondsActive = annotation.buildSecondsActiveArray();
     annotation.marker.teardown();
     annotation.buildMarker();
-    annotation.marker.$el.off('click.vac-marker');
+    eventManager.off(annotation.marker.el, 'click.vac-marker');
     annotation.bindEvents();
     this.stateChanged();
     this.plugin.fire('annotationEdited', { id: annotation.id, annotation: annotation.data });

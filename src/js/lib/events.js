@@ -13,8 +13,8 @@
 
 class EventManager {
   constructor() {
-    // WeakMap to store element -> Map<eventType+namespace, {handler, originalHandler, selector?}>
-    this._bindings = new WeakMap();
+    // Array of all bindings: { el, type, namespace, selector, fn, listener }
+    this._bindings = [];
   }
 
   /**
@@ -45,24 +45,18 @@ class EventManager {
           while (target && target !== el) {
             if (target.matches(selector)) {
               fn.call(target, e);
-              break;
+              return;
             }
             target = target.parentElement;
           }
         }
       : fn;
 
-    // Store binding for later removal
-    const key = `${type}.${namespace || 'default'}`;
-    const binding = { type, namespace, selector, fn, listener };
-
-    if (!this._bindings.has(el)) {
-      this._bindings.set(el, new Map());
-    }
-    this._bindings.get(el).set(key, binding);
-
+    const binding = { el, type, namespace, selector, fn, listener };
+    this._bindings.push(binding);
     el.addEventListener(type, listener);
-    return () => this._offSingle(el, key);
+
+    return () => this._removeSingle(binding);
   }
 
   /**
@@ -71,51 +65,43 @@ class EventManager {
    * @param {string} [eventName] - e.g., 'click.vac-marker' or '.vac-marker' (any event in namespace) or empty for all
    */
   off(el, eventName = '') {
-    if (!el || !this._bindings.has(el)) return;
+    if (!el) return;
 
-    const bindings = this._bindings.get(el);
     if (!eventName) {
       // Remove all events for this element
-      for (const [key, binding] of bindings) {
-        el.removeEventListener(binding.type, binding.listener);
-      }
-      bindings.clear();
+      this._removeMatching(b => b.el === el);
       return;
     }
 
     if (eventName.startsWith('.')) {
-      // Remove all events in this namespace
+      // Remove all events in this namespace for this element
       const namespace = eventName.slice(1);
-      for (const [key, binding] of bindings) {
-        if (binding.namespace === namespace) {
-          el.removeEventListener(binding.type, binding.listener);
-          bindings.delete(key);
-        }
-      }
+      this._removeMatching(b => b.el === el && b.namespace === namespace);
       return;
     }
 
     // Specific event+namespace
     const [type, namespace] = this._parseEventName(eventName);
-    const key = `${type}.${namespace || 'default'}`;
-    this._offSingle(el, key);
+    if (namespace) {
+      this._removeMatching(b => b.el === el && b.type === type && b.namespace === namespace);
+    } else {
+      this._removeMatching(b => b.el === el && b.type === type);
+    }
   }
 
   /**
    * Remove all events tracked by this manager.
    */
   offAll() {
-    for (const [el, bindings] of this._bindings) {
-      for (const [key, binding] of bindings) {
-        el.removeEventListener(binding.type, binding.listener);
-      }
-      bindings.clear();
+    for (let i = this._bindings.length - 1; i >= 0; i--) {
+      const b = this._bindings[i];
+      b.el.removeEventListener(b.type, b.listener);
     }
-    this._bindings = new WeakMap();
+    this._bindings.length = 0;
   }
 
   /**
-   * Trigger an event on an element (simulate jQuery .trigger).
+   * Trigger an event on an element.
    * @param {Element} el
    * @param {string} eventName - e.g., 'click'
    * @param {*} [data] - optional data to attach to event.detail
@@ -133,16 +119,26 @@ class EventManager {
     return [eventName.slice(0, dot), eventName.slice(dot + 1)];
   }
 
-  _offSingle(el, key) {
-    const bindings = this._bindings.get(el);
-    if (!bindings || !bindings.has(key)) return;
-    const binding = bindings.get(key);
-    el.removeEventListener(binding.type, binding.listener);
-    bindings.delete(key);
+  _removeSingle(binding) {
+    const idx = this._bindings.indexOf(binding);
+    if (idx === -1) return;
+    binding.el.removeEventListener(binding.type, binding.listener);
+    this._bindings.splice(idx, 1);
+  }
+
+  _removeMatching(predicate) {
+    for (let i = this._bindings.length - 1; i >= 0; i--) {
+      const b = this._bindings[i];
+      if (predicate(b)) {
+        b.el.removeEventListener(b.type, b.listener);
+        this._bindings.splice(i, 1);
+      }
+    }
   }
 }
 
-// Export a singleton instance for convenience, and the class itself.
-const defaultManager = new EventManager();
-export default defaultManager;
-export { EventManager };
+// Shared instance for components that need cross-component event unbinding
+const sharedManager = new EventManager();
+
+export default EventManager;
+export { EventManager, sharedManager };

@@ -2,9 +2,9 @@
   Component for an invidual comment
 */
 
-const $ = require('jquery');
 const PlayerUIComponent = require('./../lib/player_ui_component');
 const Utils = require('./../lib/utils');
+const { htmlToEl } = require('../lib/dom');
 
 const templateName = 'comment';
 
@@ -18,20 +18,31 @@ module.exports = class Comment extends PlayerUIComponent {
     this.timestamp = Math.floor(new Date(data.meta.datetime).getTime() / 1000);
     this.timeSince = this.timeSince();
 
-    this.$el = $(this.render());
+    this.el = htmlToEl(this.render());
   }
 
-  // Serialize data
+  // Serialize as W3C reply annotation
   get data() {
     return {
-      id: this.id,
-      meta: this.meta,
-      body: this.body
+      type: 'Annotation',
+      motivation: 'replying',
+      body: { type: 'TextualBody', value: this.body, format: 'text/plain' },
+      creator: {
+        type: 'Person',
+        name: this.meta.user_name,
+        ...(this.meta.user_id != null ? { id: String(this.meta.user_id) } : {})
+      },
+      created: this.meta.datetime
     };
   }
 
+  // Internal data for non-API use
+  get _internalData() {
+    return { id: this.id, meta: this.meta, body: this.body };
+  }
+
   get HTML() {
-    return this.$el[0].outerHTML;
+    return this.el.outerHTML;
   }
 
   render() {

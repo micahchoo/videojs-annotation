@@ -3,9 +3,10 @@
     as drag occurs
 */
 
-const $ = require('jquery');
 const Marker = require('./marker');
-const Utils = require('./../lib/utils');
+const Utils = require('../lib/utils');
+const { offset, innerWidth, addClass, removeClass, qs } = require('../lib/dom');
+const { sharedManager: eventManager } = require('../lib/events');
 
 const markerTemplateName = 'draggable_marker';
 
@@ -17,56 +18,59 @@ module.exports = class DraggableMarker extends Marker {
     this.dragging = false; // Is a drag action currently occring?
     this.rangePin = range.start; // What's the original pinned timeline point when marker was added
     this.render();
-    this.$parent = this.$UI.markerWrap; // Set parent as marker wrap
+    this.parentEl = this.$UI.markerWrap; // Set parent as marker wrap (raw element)
   }
 
-  // Bind needed evnets for UI interaction
+  // Bind needed events for UI interaction
   bindMarkerEvents() {
     // On mouse down init drag
-    this.$el.on('mousedown.vac-marker', e => {
+    eventManager.on(this.el, 'mousedown.vac-marker', e => {
       e.preventDefault();
       this.dragging = true;
       // When mouse moves (with mouse down) call onDrag, throttling to once each 250 ms
-      $(document).on(
+      eventManager.on(
+        document,
         `mousemove.vac-dmarker-${this.playerId}`,
         Utils.throttle(this.onDrag.bind(this), 250)
       );
 
       // Add drag class to cursor tooltip if available
       if (!this.plugin.options.showControls) {
-        this.$player
-          .find('.vac-cursor-tool-tip')
-          .addClass('vac-cursor-dragging')
-          .removeClass('vac-marker-hover');
+        const tooltip = qs(this.player.el(), '.vac-cursor-tool-tip');
+        if (tooltip) {
+          addClass(tooltip, 'vac-cursor-dragging');
+          removeClass(tooltip, 'vac-marker-hover');
+        }
       }
     });
 
     // On mouse up end drag action and unbind mousemove event
-    $(document).on(`mouseup.vac-dmarker-${this.playerId}`, e => {
+    eventManager.on(document, `mouseup.vac-dmarker-${this.playerId}`, e => {
       if (!this.dragging) return;
-      $(document).off(`mousemove.vac-dmarker-${this.playerId}`);
+      eventManager.off(document, `mousemove.vac-dmarker-${this.playerId}`);
       this.dragging = false;
 
       // Remove drag class and hover class from cursor tooltip if available
       if (!this.plugin.options.showControls) {
-        this.$player
-          .find('.vac-cursor-tool-tip')
-          .removeClass('vac-cursor-dragging')
-          .removeClass('vac-marker-hover');
+        const tooltip = qs(this.player.el(), '.vac-cursor-tool-tip');
+        if (tooltip) {
+          removeClass(tooltip, 'vac-cursor-dragging');
+          removeClass(tooltip, 'vac-marker-hover');
+        }
       }
     });
 
-    // On mouse mouse enter, show cursor tooltip if controls are not shown
+    // On mouse enter, show cursor tooltip if controls are not shown
     // This adds the class which is picked up in Controls
     if (!this.plugin.options.showControls) {
-      const self = this;
-      self.$el
-        .on('mouseenter.vac-cursor-tool-tip', () => {
-          self.$player.find('.vac-cursor-tool-tip').addClass('vac-marker-hover');
-        })
-        .on('mouseleave.vac-cursor-tool-tip', () => {
-          self.$player.find('.vac-cursor-tool-tip').removeClass('vac-marker-hover');
-        });
+      eventManager.on(this.el, 'mouseenter.vac-cursor-tool-tip', () => {
+        const tooltip = qs(this.player.el(), '.vac-cursor-tool-tip');
+        if (tooltip) addClass(tooltip, 'vac-marker-hover');
+      });
+      eventManager.on(this.el, 'mouseleave.vac-cursor-tool-tip', () => {
+        const tooltip = qs(this.player.el(), '.vac-cursor-tool-tip');
+        if (tooltip) removeClass(tooltip, 'vac-marker-hover');
+      });
     }
   }
 
@@ -98,23 +102,23 @@ module.exports = class DraggableMarker extends Marker {
     this.plugin.fire('addingAnnotationDataChanged', { range: this.range });
   }
 
-  // Cal percentage (of video) position for a pixel-based X position on the document
+  // Calculate percentage (of video) position for a pixel-based X position on the document
   percentValFromXpos(xpos) {
-    const x = Math.max(0, xpos - this.$parent.offset().left); // px val
-    const max = this.$parent.innerWidth();
+    const rect = offset(this.parentEl);
+    const max = innerWidth(this.parentEl);
+    const x = Math.max(0, xpos - rect.left); // px val
     let per = x / max;
     if (per > 1) per = 1;
     if (per < 0) per = 0;
     return per;
   }
 
-  // Remove bound events on destructon
+  // Remove bound events on destruction
   teardown() {
-    $(document).off(`mousemove.vac-dmarker-${this.playerId} mouseup.vac-dmarker-${this.playerId}`);
-    this.$el.off('mouseenter.vac-cursor-tool-tip');
-    this.$el.off('mouseleave.vac-cursor-tool-tip');
-    this.$el.off('mousedown.vac-marker');
-    this.$el.remove();
+    eventManager.off(document, `.vac-dmarker-${this.playerId}`);
+    eventManager.off(this.el, '.vac-cursor-tool-tip');
+    eventManager.off(this.el, 'mousedown.vac-marker');
+    super.teardown();
   }
 
   // Move the video & marker start by some amount (pos or neg)

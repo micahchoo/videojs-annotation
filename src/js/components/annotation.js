@@ -8,6 +8,8 @@ const CommentList = require('./comment_list');
 const Marker = require('./marker');
 const Comment = require('./comment');
 const Shape = require('./shape');
+const { sharedManager: eventManager } = require('../lib/events');
+const { toW3C } = require('../lib/w3c');
 
 module.exports = class Annotation extends PlayerUIComponent {
   constructor(data, player) {
@@ -39,21 +41,26 @@ module.exports = class Annotation extends PlayerUIComponent {
     this.annotationShape = new Shape(this.player, this.shape);
   }
 
-  // Serialize object
+  // Serialize as W3C Web Annotation
   get data() {
+    return toW3C(this._internalData, this.plugin.videoSrc, this.plugin.options.idPrefix);
+  }
+
+  // Internal data for non-API use (sorting, time map, etc.)
+  get _internalData() {
     return {
       id: this.id,
       range: this.range,
       shape: this.shape,
       markerClass: this.markerClass,
       annotationType: this.annotationType,
-      comments: this.commentList.data
+      comments: this.commentList._internalData
     };
   }
 
   bindEvents() {
-    this.marker.$el.off('click.vac-marker');
-    this.marker.$el.on('click.vac-marker', e =>
+    eventManager.off(this.marker.el, 'click.vac-marker');
+    eventManager.on(this.marker.el, 'click.vac-marker', e =>
       this.plugin.annotationState.openAnnotation(this, true)
     );
   }
@@ -75,7 +82,7 @@ module.exports = class Annotation extends PlayerUIComponent {
       this.annotationShape.render();
 
       if (this.shape) {
-        this.annotationShape.$el.on('click.vac-annotation', () => {
+        eventManager.on(this.annotationShape.el, 'click.vac-annotation', () => {
           this.plugin.annotationState.openAnnotation(this, false, false, false);
         });
       }
@@ -96,7 +103,7 @@ module.exports = class Annotation extends PlayerUIComponent {
     this.isOpen = false;
     this.marker.deactivate();
     this.commentList.teardown(false);
-    if (this.annotationShape.$el) this.annotationShape.$el.off('click.vac-annotation');
+    if (this.annotationShape.el) eventManager.off(this.annotationShape.el, 'click.vac-annotation');
     this.annotationShape.teardown();
     if (clearActive) this.plugin.annotationState.clearActive();
     this.plugin.fire('annotationClosed', this.data);

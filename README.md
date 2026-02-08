@@ -1,272 +1,322 @@
-[![CircleCI](https://circleci.com/gh/contently/videojs-annotation-comments/tree/master.svg?style=svg)](https://circleci.com/gh/contently/videojs-annotation-comments/tree/master)
+# videojs-annotation
 
-# AnnotationComments : Collaborate in your VideoJS player
+Timeline annotation and commenting plugin for [Video.js](https://videojs.com/). Add time-ranged markers, shapes overlaid on the video, and threaded comments — all within the player.
 
-![AnnotationComments Screenshot1](test/screenshot.png)
+> **Hard fork** of [@contently/videojs-annotation-comments](https://github.com/trilogy-group/contently-videojs-annotation-comments).
+> This fork removes jQuery and Handlebars, adds W3C Web Annotation support, frame-accurate selection, a React hook, and ships as ESM/CJS/UMD with zero runtime dependencies (aside from `mitt`).
 
->## Upgrading v1 -> v2
->Please note that the event based API has changed. In version 1, you can subscribe to plugin events with `pluginInstance.on()`. In version 2, the same functionality is available with `pluginInstance.registerListener()`. The following docs are for the latest version.
+**[Live Demo](https://micahchoo.github.io/videojs-annotation/)**
 
-## About
+![AnnotationComments Screenshot](test/screenshot.png)
 
-### Background
+## What changed from upstream
 
-Collaboration between videographers and clients can be tedious, with emails and phone calls that waste time trying to reference specific frames and areas of the screen. This plugin enables more efficient collaboration from the browser.
+- Dropped jQuery and Handlebars — vanilla DOM helpers and template literals instead
+- All external data uses the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) (legacy format auto-detected)
+- Frame-accurate selection via `frameRate` option
+- Annotation editing (range + shape) with `editAnnotation` event
+- Permission flags (`allowEdit`, `allowDelete`, `allowAdd`, `restrictEditToOwner`, `restrictDeleteToOwner`)
+- Annotation type system (`annotationType` field, `vac-type-{type}` CSS class)
+- Bulk state replacement via `setAnnotations` event
+- Granular lifecycle events (`annotationAdded`, `commentAdded`, `commentDeleted`, `annotationEdited`)
+- React hook (`useAnnotationComments`)
+- Build moved from Gulp + Browserify to Rollup 4 + Babel
+- ESM output for tree-shaking
+- Only runtime dependency: `mitt` (~200 bytes)
 
-This plugin was conceived and developed as a Hack Week project at [Contently](http://www.contently.com) by [Evan Carothers](http://www.github.com/ecaroth) and [Jack Pope](http://www.github.com/jackpope). Continuing our focus and commitment to multimedia support at Contently, the entire team productized and bulletproofed the plugin as a flexible solution to be used in our product and other open-source use cases.
+## Install
 
- ### Goals
+Install directly from GitHub:
 
-- **Efficient for videographers and clients alike** - Provides useful collaboration features including annotations, comments/replies, ranged time markers, and more, with intuitive controls.
-- **SIMPLE & LIGHTWEIGHT** - Everything is contained within the plugin and player element. There is no need to build additional UI components. Just install VideoJS, register the plugin, setup whatever backend storage you wish, and start collaborating.
-- **EXTENSIBLE** - The plugin can be integrated with existing commenting systems (as we did within Contently), and makes very few assumptions about how to store annotations. Custom events are available for communicating with external APIs, providing support for on-page interactions and data persistence. Simple CSS overrides can also allow for branding customizations with minimal effort, or completely custom UI/UX.
-
-### VideoJS Plugins
-
-[VideoJS](http://videojs.com/) is a popular open-source HTML5 video player library used by 400k+ sites. As of v6, there is an extendable plugin architecture which was used to create this plugin. This plugin is built and tested against [VideoJS v7](https://www.npmjs.com/package/video.js/)
-
-## Use it!
-
-### Install
-
-```
-yarn add @contently/videojs-annotation-comments
-```
-
-OR
-
-```
-npm install @contently/videojs-annotation-comments
-```
-### Add it to your VideoJS player
-
-#### As a script from build
-
-```javascript
-// ...videojs & videojs-annotation-comments have been loaded in script tags...
-var player = videojs('video-id');
-var plugin = player.annotationComments(pluginOptions)
+```bash
+npm install github:micahchoo/videojs-annotation
 ```
 
-#### As a module
+Or add to `package.json` dependencies:
 
-```javascript
-import videojs from 'video.js'
-import AnnotationComments from '@contently/videojs-annotation-comments'
- videojs.registerPlugin('annotationComments', AnnotationComments(videojs))
- var player = videojs('video-id')
-var plugin = player.annotationComments(pluginOptions)
+```json
+{
+  "dependencies": {
+    "videojs-annotation": "github:micahchoo/videojs-annotation"
+  }
+}
 ```
 
-### Plugin options / configuration
+You also need video.js as a peer dependency:
 
-When initializing the plugin, you can pass in an options array to override default options. Any excluded options are set to their default values, listed below:
+```bash
+npm install video.js
+```
 
-```javascript
-const pluginOptions = {
-    // Collection of annotation data to initialize
+## Quick Start
+
+### Script tag (UMD)
+
+The UMD build auto-registers the plugin on the global `videojs`. No manual registration needed.
+
+```html
+<link href="node_modules/video.js/dist/video-js.css" rel="stylesheet">
+<link href="node_modules/videojs-annotation/build/css/annotations.css" rel="stylesheet">
+<script src="node_modules/video.js/dist/video.min.js"></script>
+<script src="node_modules/videojs-annotation/build/videojs-annotation.js"></script>
+<script>
+  var player = videojs('my-video');
+  var plugin = player.annotationComments({
     annotationsObjects: [],
-    // Flexible meta data object (currently used for user data, but addl data can be provided to wrap each comment with metadata - provide the id of the current user and fullname of the current user at minimum, which are required for the UI)
-    meta: { user_id: null, user_name: null },
-    // Use arrow keys to move through annotations when Annotation mode is active
-    bindArrowKeys: true,
-    // Show or hide the control panel and annotation toggle button (NOTE - if controls are hidden you must provide custom UI and events to drive the annotations - more on that in "Programmatic Control" below)
-    showControls: true,
-    // Show or hide the comment list when an annotation is active. If false, the text 'Click and drag to select', will follow the cursor during annotation mode
-    showCommentList: true,
-    // If false, annotations mode will be disabled in fullscreen
-    showFullScreen: true,
-    // Show or hide the tooltips with comment preview, and annotation shape, on marker hover or timeline activate
-    showMarkerShapeAndTooltips: true,
-    // If false, step two of adding annotations (writing and saving the comment) will be disabled
-    internalCommenting: true,
-    // If true, toggle the player to annotation mode immediately after init. (NOTE - "annotationModeEnabled" event is not fired for this initial state)
-    startInAnnotationMode: false
-};
+    meta: { user_id: 1, user_name: 'Jane' }
+  });
+</script>
 ```
 
-### Annotation Data Structure
+### ES Module
 
-To initialize the plugin with the `annotationsObjects` collection, use the following structure:
-```javascript
-const annotationsObjects = [{
-    id: 1,
-    range: {
-        start: 10,
-        end: 15
+The ESM build exports a factory function. You must register it as a video.js plugin yourself.
+
+```js
+import videojs from 'video.js';
+import AnnotationComments from 'videojs-annotation';
+import 'videojs-annotation/css';
+
+videojs.registerPlugin('annotationComments', AnnotationComments(videojs));
+
+const player = videojs('my-video');
+const plugin = player.annotationComments({
+  annotationsObjects: [],
+  meta: { user_id: 1, user_name: 'Jane' }
+});
+```
+
+### CommonJS
+
+```js
+const videojs = require('video.js');
+const AnnotationComments = require('videojs-annotation');
+
+videojs.registerPlugin('annotationComments', AnnotationComments(videojs));
+```
+
+## Options
+
+```js
+const plugin = player.annotationComments({
+  // Initial annotation data (W3C or legacy format, auto-detected)
+  annotationsObjects: [],
+  // Current user metadata
+  meta: { user_id: null, user_name: null },
+  // Navigate annotations with left/right arrow keys
+  bindArrowKeys: true,
+  // Show built-in control panel and toggle button
+  showControls: true,
+  // Show threaded comment list when an annotation is active
+  showCommentList: true,
+  // Allow annotations in fullscreen mode
+  showFullScreen: true,
+  // Show tooltip previews and shapes on marker hover during playback
+  showMarkerShapeAndTooltips: true,
+  // Enable the built-in comment writing UI (step 2 of adding annotations)
+  internalCommenting: true,
+  // Start in annotation mode immediately
+  startInAnnotationMode: false,
+  // Frame rate for frame-accurate selection (null = second-based)
+  frameRate: null,
+  // Permission flags
+  allowAdd: true,
+  allowEdit: true,
+  allowDelete: true,
+  // Restrict edit/delete to the annotation owner (matches meta.user_id)
+  restrictEditToOwner: false,
+  restrictDeleteToOwner: false,
+  // Override video source URI for W3C annotation target (auto-detected from player if null)
+  videoSrc: null,
+  // URI prefix for annotation IDs in W3C output (e.g. 'urn:uuid:')
+  idPrefix: ''
+});
+```
+
+## Annotation Data (W3C Web Annotation)
+
+Input and output data follows the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/). Time ranges and spatial regions use [Media Fragments URI](https://www.w3.org/TR/media-frags/) selectors. Threaded replies are separate annotations with `motivation: "replying"`.
+
+```js
+const annotationsObjects = [
+  // Root annotation
+  {
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    type: 'Annotation',
+    id: 'anno-1',
+    motivation: 'commenting',
+    body: { type: 'TextualBody', value: 'Nice shot!', format: 'text/plain' },
+    target: {
+      type: 'SpecificResource',
+      source: 'video.mp4',
+      selector: {
+        type: 'FragmentSelector',
+        conformsTo: 'http://www.w3.org/TR/media-frags/',
+        value: 't=10,15&xywh=percent:23.5,10,37.5,34'
+      }
     },
-    shape: {
-        x1: 23.47,
-        y1: 9.88,
-        x2: 60.83,
-        y2: 44.2
-    },
-    comments: [{
-        id: 1,
-        meta: {
-            datetime: '2017-03-28T19:17:32.238Z',
-            user_id: 1,
-            user_name: 'Jack Pope'
-        },
-        body: 'The first comment!'
-    }]
+    creator: { type: 'Person', name: 'Jack Pope', id: '1' },
+    created: '2024-01-15T10:30:00Z'
+  },
+  // Reply
+  {
+    '@context': 'http://www.w3.org/ns/anno.jsonld',
+    type: 'Annotation',
+    id: 'reply-1',
+    motivation: 'replying',
+    body: { type: 'TextualBody', value: 'Agreed!', format: 'text/plain' },
+    target: 'anno-1',
+    creator: { type: 'Person', name: 'Jane', id: '2' },
+    created: '2024-01-15T11:00:00Z'
+  }
+];
+```
+
+**Media Fragment selectors:**
+- Time only: `t=10,15` (range) or `t=10` (moment)
+- With shape: `t=10,15&xywh=percent:23.5,10,37.5,34` (x, y, width, height as percentages)
+
+**Extension properties** (optional, on root annotations):
+- `markerClass` — custom CSS class on the timeline marker
+- `annotationType` — adds `vac-type-{type}` class (e.g. `"review"`)
+
+### Legacy format
+
+The plugin auto-detects and accepts the legacy internal format for backward compatibility:
+
+```js
+const legacy = [{
+  id: 'unique-id',
+  range: { start: 10, end: 15 },
+  shape: { x1: 23.5, y1: 10, x2: 61, y2: 44 },
+  comments: [{
+    id: 'comment-id',
+    meta: { datetime: '2024-01-15T10:30:00Z', user_id: 1, user_name: 'Jack Pope' },
+    body: 'The first comment!'
+  }]
 }];
 ```
 
-### Programmatic Control
+## API
 
-If you'd like to drive the plugin or render plugin data through external UI elements, you can configure the plugin to hide the internal components and pass data through custom events. There are two kinds of AnnotationComments API events, _externally fired_ and _internally fired_.
+### Waiting for Ready
 
-#### Waiting for Plugin Ready
-
-Before triggering any events on the plugin, you must wait for it to be ready. You can use the `onReady` function on the plugin:
-
-```javascript
+```js
 plugin.onReady(() => {
-    // do stuff with the plugin, such as fire events or setup listeners
+  // plugin is initialized, safe to fire events
 });
 ```
 
-#### Supported Externally Fired Events:
+### Firing Events (External -> Plugin)
 
- These events are external actions that can be called from your scripts to trigger events within the plugin:
-
-```javascript
-// openAnnotation : Opens an annotation within the player given an ID
-plugin.fire('openAnnotation', { id: myAnnotationId });
- // closeActiveAnnotation : Closes any active annotation
+```js
+plugin.fire('openAnnotation', { id: 'annotation-id' });
 plugin.fire('closeActiveAnnotation');
- // newAnnotation : Adds a new annotation within the player and opens it given comment data
 plugin.fire('newAnnotation', {
-    id: 1,
-    range: { start: 20, end: null },
-    shape: { // NOTE - x/y vals are % based (Floats) in video, not pixel values
-        x1: null,
-        x2: null,
-        y1: null,
-        y2: null
-    },
-    commentStr: "This is my comment."
+  id: 'new-id',
+  range: { start: 20, end: 25 },
+  shape: { x1: 10, x2: 50, y1: 10, y2: 50 },
+  commentStr: 'This is my comment.'
 });
- // destroyAnnotation : Removes an annotation and it's marker within the player given comment data
-plugin.fire('destroyAnnotation', { id: 1 });
- // newComment : Adds a new comment to an Annotation given an Annotation ID and a body
-plugin.fire('newComment', { annotationId: 1, body: "My comment string" });
- // destroyComment : Removes a comment from an Annotation given a Comment ID
-plugin.fire('destroyComment', { id: 1 });
- // addingAnnotation : Plugin enters the adding annotation state (adding an annotation at the current player timestamp)
+plugin.fire('destroyAnnotation', { id: 'annotation-id' });
+plugin.fire('newComment', { annotationId: 'annotation-id', body: 'Reply text' });
+plugin.fire('destroyComment', { id: 'comment-id' });
+plugin.fire('setAnnotations', { annotations: [...newData] });
+plugin.fire('editAnnotation', { id: 'annotation-id', range: { start: 5, end: 10 }, shape: null });
 plugin.fire('addingAnnotation');
- // cancelAddingAnnotation : Plugin exits the adding annotation state
 plugin.fire('cancelAddingAnnotation');
- // toggleAnnotationMode : toggle annotation mode to alternative on/off value
 plugin.fire('toggleAnnotationMode');
 ```
 
-#### Supported Internally Fired Events:
-These are events that are triggered from within the running plugin and can be listened for by binding to `plugin.registerListener` within your scripts:
+### Listening for Events (Plugin -> External)
 
- ```javascript
-// annotationOpened : Fired whenever an annotation is opened
-plugin.registerListener('annotationOpened', (event) => {
-    // event.detail =
-    // {
-    //      annotation: (object) annotation data in format {id:.., comments:..., range:..., shape:...},
-    //      triggered_by_timeline: (boolean) TRUE = the event was triggered via a timeline action (like scrubbing or playing), FALSE = the annotation was opened via marker click, UI button interactions, or API/event input
-    // }
-});
- // annotationClosed : Fired whenever an annotation is closed
-plugin.registerListener('annotationClosed', (event) => {
-    // event.detail = annotation (object) in format {id:.., comments:..., range:..., shape:...}
-});
- // addingAnnotationDataChanged : Fired from adding annotation state if:
-//  1. the marker is dragged
-//  2. the start of the marker is moved via control buttons
-//  3. the shape is dragged
-plugin.registerListener('addingAnnotationDataChanged', (event) => {
-    var newRange = event.detail.range; // returns range data if range was changed
-    var newShape = event.detail.shape; // returns shape data if shape was changed
-    // do something with the data
-});
- // annotationDeleted : Fired when an annotation has been deleted via the UI
-plugin.registerListener('annotationDeleted', (event) => {
-    // annotationId = event.detail
-});
- // enteredAnnotationMode : Fired when the plugin enters adding annotation mode
-// includes initial range data
-plugin.registerListener('enteredAddingAnnotation', (event) => {
-    var startTime = event.detail.range.start;
-    // do something when adding annotation state begins
-});
- // onStateChanged: Fired when plugin state has changed (annotation added, removed, etc)
-// This is a way to watch global plugin state, as an alternative to watching various annotation events
-plugin.registerListener('onStateChanged', (event) => {
-    // event.detail = annotation state data
-});
- // playerBoundsChanged : Fired when the player boundaries change due to window resize or fullscreen mode
-plugin.registerListener('playerBoundsChanged', (event) => {
-    var bounds = event.detail;
-    // do something with the new boundaries
-});
- // Entering annotation mode (annotation icon was clicked when previously 'off')
-plugin.registerListener('annotationModeEnabled', (event) => {
-    // do something
-});
- // Exiting annotation mode (annotation icon was clicked when previously 'on')
-plugin.registerListener('annotationModeDisabled', (event) => {
-    // do something
-});
+```js
+plugin.registerListener('annotationOpened', (e) => {});    // e.detail.annotation, e.detail.triggered_by_timeline
+plugin.registerListener('annotationClosed', (e) => {});    // e.detail = annotation data
+plugin.registerListener('onStateChanged', (e) => {});      // e.detail = all annotation data
+plugin.registerListener('annotationAdded', (e) => {});     // e.detail.annotation
+plugin.registerListener('annotationDeleted', (e) => {});   // e.detail.id
+plugin.registerListener('annotationEdited', (e) => {});    // e.detail.id, e.detail.annotation
+plugin.registerListener('commentAdded', (e) => {});        // e.detail.annotationId, e.detail.comment
+plugin.registerListener('commentDeleted', (e) => {});      // e.detail.annotationId, e.detail.commentId
+plugin.registerListener('addingAnnotationDataChanged', (e) => {}); // e.detail.range, e.detail.shape
+plugin.registerListener('enteredAddingAnnotation', (e) => {});     // e.detail.range
+plugin.registerListener('annotationModeEnabled', () => {});
+plugin.registerListener('annotationModeDisabled', () => {});
+plugin.registerListener('playerBoundsChanged', (e) => {}); // e.detail = bounds object
 ```
 
-## Develop and Build
+## React Hook
 
-We're using [yarn](https://yarnpkg.com/en/) for package management and [gulp](https://github.com/gulpjs/gulp) as our build system.
+```js
+import { useAnnotationComments } from 'videojs-annotation/react';
 
-The fastest way to get started:
-- Clone the repo
-- Run `yarn install`
-- Run `yarn build`
-- Run `yarn watch`
-- Visit `http://localhost:3004/test.html` to see the magic happen.
+function VideoAnnotations({ player }) {
+  const { ready, active, annotations, toggle, fire, plugin } = useAnnotationComments({
+    player,
+    options: {
+      meta: { user_id: 1, user_name: 'Jane' },
+      annotationsObjects: []
+    },
+    onStateChanged: (data) => console.log('state changed', data),
+    onAnnotationOpened: (data) => console.log('opened', data),
+    onAnnotationClosed: (data) => console.log('closed', data)
+  });
 
-### Templates
+  if (!ready) return <div>Loading...</div>;
 
- We're using the [Handlebars](http://handlebarsjs.com/) templating library to render various components within the plugin. For performance, the templates are pre-compiled into a JS file within the development environment. That way we only need to require the Handlebars runtime, saving nearly 100kb from the minified build! ⚡️
+  return (
+    <div>
+      <button onClick={toggle}>
+        {active ? 'Hide' : 'Show'} Annotations ({annotations.length})
+      </button>
+      <button onClick={() => fire('addingAnnotation')}>
+        Add Annotation
+      </button>
+    </div>
+  );
+}
+```
 
-The `gulp templates` task is used to precompile every template to `/src/js/compiled/templates.js`. This file should _not_ be modified directly, but rather the templates themselves in `/src/templates` should be modified if changes are needed. The templates task will run automatically within `gulp watch`.
+Returns: `ready`, `active`, `annotations`, `toggle()`, `fire(type, data)`, `plugin`. React is an optional peer dependency. The hook auto-disposes on unmount.
 
+## CSS Customization
 
-### UI / CSS Customization
+All styles are in `build/css/annotations.css`, prefixed with `vac-`. The SCSS source is at `src/css/annotations.scss` with color variables at the top.
 
-The plugin uses SASS and all styles are defined in [annotaitons.scss](src/css/annotations.scss). There is extenssive commenting on classes and styles in the file. The plugin uses a deep level of specificity to prevent styles from polluting elements on the page, and all classes are prefixed with `vac-` to prevent classname collisions in the global namespace.
+```css
+.vac-marker { background-color: #ff6600; }
+.vac-shape { border-color: #ff6600; }
+```
 
-You can extend/modify colors and elements quite easily by writing an overrides stylesheet to address the specific elements that you wish to modify. You can also change the variable colors in the stylesheet and compile yourself for more customization.
+## Development
 
-_NOTE_ - our gulp build tasks use an auto-prefixer to make the styles work cross-browser, so be sure to run that yourself if you compile the SASS files with changes.
+```bash
+git clone https://github.com/micahchoo/videojs-annotation.git
+cd videojs-annotation
+npm install
+npm run build          # build to build/
+npm run serve          # dev server at http://localhost:3004
+npm test               # unit tests
+```
 
-### Testing
+The dev server serves the test pages with all dependencies resolved:
+- http://localhost:3004/test.html — interactive test page with options panel
+- http://localhost:3004/test_api.html — API event test page
 
-#### Feature tests
+## Build Output
 
-Feature tests are currently browser-based and run by visiting `http://localhost:3004/mocha/features/index.html`. Feature tests can be added as files in the `/test/mocha/features/` directory and then included within the `index.html` file as a external scripts.
+- `build/videojs-annotation.js` (UMD)
+- `build/videojs-annotation.min.js` (UMD, minified)
+- `build/videojs-annotation.cjs.js` (CommonJS)
+- `build/videojs-annotation.esm.js` (ES Module, tree-shakeable)
+- `build/videojs-annotation-react.esm.js` (React hook)
+- `build/css/annotations.css`
 
-#### Unit tests
+## License
 
-Unit tests are run through the `gulp test` task. If the `tdd` task is included in `gulp watch`, the tests will run with every change to the test files. Each module should have a corresponding unit test file within the `/test/mocha/modules` directory.
+[Apache License 2.0](license.md)
 
-### Gulp commands
+## Credits
 
-`gulp watch`: Fires up webserver @ `http://localhost:3004/test.html`, watches for any file changes in `/src`, including js, css (scss), and templates (.hbs), repackages, and transpiles to an unminified file in `/build` on change.
-
-`gulp transpile`: Transpiles modules/files to build file in `/build` with JS maps
-
-`gulp build`: Runs transpilation, browserify, sass, then minifies to distribution filename in `/build` with attribution
-
-`gulp templates`: Uses Handlebars to pre-compile templates into a javascript file. See Templates section above.
-
-`gulp test`: Runs the mocha unit tests within the `/test/mocha/modules/` directory.
-
-`gulp lint`: Runs jshint linter on javascript files in `/src`
-
-### License
-
-This plugin is [licensed](license.md) under the Apache License, Version 2.0, which is the same license used by Video.js
+Originally created by [Evan Carothers](https://github.com/ecaroth) and [Jack Pope](https://github.com/jackpope) at [Contently](https://github.com/trilogy-group/contently-videojs-annotation-comments).

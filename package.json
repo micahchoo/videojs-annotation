@@ -1,17 +1,39 @@
 {
-  "name": "@contently/videojs-annotation-comments",
-  "version": "3.0.0",
-  "description": "A plugin for video.js to add support for timeline moment/range comments and annotations",
-  "repository": "git@github.com:trilogy-group/contently-videojs-annotation-comments.git",
-  "main": "build/videojs-annotation-comments.cjs.js",
+  "name": "videojs-annotation",
+  "version": "4.0.0",
+  "description": "Video.js plugin for timeline annotations, spatial shapes, and threaded comments using W3C Web Annotation format",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/micahchoo/videojs-annotation.git"
+  },
+  "main": "build/videojs-annotation.cjs.js",
+  "module": "build/videojs-annotation.esm.js",
+  "exports": {
+    ".": {
+      "import": "./build/videojs-annotation.esm.js",
+      "require": "./build/videojs-annotation.cjs.js",
+      "default": "./build/videojs-annotation.esm.js"
+    },
+    "./react": {
+      "import": "./build/videojs-annotation-react.esm.js",
+      "default": "./build/videojs-annotation-react.esm.js"
+    },
+    "./css": "./build/css/annotations.css"
+  },
+  "sideEffects": [
+    "./build/videojs-annotation.js",
+    "./build/videojs-annotation.min.js",
+    "./build/css/*.css"
+  ],
   "style": "build/css/annotations.css",
   "files": [
     "build"
   ],
   "scripts": {
-    "prebuild": "node scripts/compile-templates.js && node scripts/compile-scss.js",
+    "prebuild": "node scripts/compile-scss.js",
     "build": "rollup -c",
     "watch": "rollup -c -w",
+    "serve": "node scripts/dev-server.js",
     "test": "mocha test/mocha/components/*.js",
     "lint": "eslint ./src"
   },
@@ -34,7 +56,6 @@
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-import": "^2.29.0",
     "eslint-plugin-prettier": "^5.0.0",
-    "handlebars": "^4.7.8",
     "mocha": "^10.0.0",
     "prettier": "^3.0.0",
     "rollup": "^4.0.0",
@@ -43,8 +64,13 @@
     "video.js": "^7.6.5"
   },
   "peerDependencies": {
-    "jquery": "^3",
-    "video.js": "^7"
+    "video.js": "^7 || ^8",
+    "react": "^16.8.0 || ^17 || ^18 || ^19"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "release": {
     "branch": "master",
@@ -68,7 +94,6 @@
     ]
   },
   "dependencies": {
-    "jquery": "^3.6.3",
     "mitt": "^1.2.0"
   }
 }

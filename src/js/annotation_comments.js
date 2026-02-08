@@ -3,7 +3,8 @@
     Can be registered to a videojs instance as a plugin
 */
 
-const $ = require('jquery');
+const { addClass, removeClass, offset, width, height, qs, qsa, remove } = require('./lib/dom');
+const { EventManager } = require('./lib/events');
 
 module.exports = videojs => {
   const Plugin = videojs.getPlugin('plugin');
@@ -27,7 +28,9 @@ module.exports = videojs => {
     allowDelete: true,
     allowAdd: true,
     restrictEditToOwner: false,
-    restrictDeleteToOwner: false
+    restrictDeleteToOwner: false,
+    videoSrc: null,
+    idPrefix: ''
   });
 
   return class AnnotationComments extends Plugin {
@@ -37,6 +40,7 @@ module.exports = videojs => {
 
       this.eventDispatcher = new EventDispatcher();
       this.eventDispatcher.registerListenersFor(this, 'AnnotationComments');
+      this.eventManager = new EventManager();
 
       this.player = player;
       this.meta = options.meta;
@@ -58,6 +62,13 @@ module.exports = videojs => {
       }
     }
 
+    // Video source URI for W3C annotation target
+    get videoSrc() {
+      if (this.options.videoSrc) return this.options.videoSrc;
+      const sources = this.player.currentSources && this.player.currentSources();
+      return (sources && sources[0] && sources[0].src) || '';
+    }
+
     // Additional init/setup after video data + metadata is available
     postLoadDataConstructor() {
       // setup initial state and render UI
@@ -75,7 +86,7 @@ module.exports = videojs => {
     // Bind needed events for interaction w/ components
     bindEvents() {
       // Set player boundaries on window size change or fullscreen change
-      $(window).on('resize.vac-window-resize', Utils.throttle(this.setBounds.bind(this), 500));
+      this.eventManager.on(window, 'resize.vac-window-resize', Utils.throttle(this.setBounds.bind(this), 500));
       this.player.on('fullscreenchange', Utils.throttle(this.setBounds.bind(this), 500));
 
       // Remove annotation features on fullscreen if showFullScreen: false
@@ -83,9 +94,9 @@ module.exports = videojs => {
         this.player.on('fullscreenchange', () => {
           if (this.player.isFullscreen_) {
             this.preFullscreenAnnotationsEnabled = this.active;
-            $(this.player.el()).addClass('vac-disable-fullscreen');
+            addClass(this.player.el(), 'vac-disable-fullscreen');
           } else {
-            $(this.player.el()).removeClass('vac-disable-fullscreen');
+            removeClass(this.player.el(), 'vac-disable-fullscreen');
           }
           if (this.preFullscreenAnnotationsEnabled) {
             // If we were previously in annotation mode (pre-fullscreen) or entering fullscreeen and are
@@ -132,14 +143,15 @@ module.exports = videojs => {
     // Set player UI boundaries
     setBounds(triggerChange = true) {
       this.bounds = {};
-      const $player = $(this.player.el());
-      const $ctrls = $player.find('.vjs-control-bar');
+      const playerEl = this.player.el();
+      const ctrlsEl = qs(playerEl, '.vjs-control-bar');
 
-      this.bounds.left = $player.offset().left;
-      this.bounds.top = $player.offset().top;
-      this.bounds.right = this.bounds.left + $player.width();
-      this.bounds.bottom = this.bounds.top + $player.height();
-      this.bounds.bottomWithoutControls = this.bounds.bottom - $ctrls.height();
+      const playerOffset = offset(playerEl);
+      this.bounds.left = playerOffset.left;
+      this.bounds.top = playerOffset.top;
+      this.bounds.right = this.bounds.left + width(playerEl);
+      this.bounds.bottom = this.bounds.top + height(playerEl);
+      this.bounds.bottomWithoutControls = this.bounds.bottom - (ctrlsEl ? height(ctrlsEl) : 0);
 
       // fires an event when bounds have changed during resizing
       if (triggerChange) this.fire('playerBoundsChanged', this.bounds);
@@ -169,17 +181,17 @@ module.exports = videojs => {
       this.teardown();
       if (this.player) {
         this.player.annotationComments = null;
-        $(this.player.el()).removeClass('vac-active');
-        $(this.player.el())
-          .find("[class^='vac-']")
-          .remove();
+        removeClass(this.player.el(), 'vac-active');
+        const vacElements = qsa(this.player.el(), "[class^='vac-']");
+        vacElements.forEach(el => remove(el));
       }
       super.dispose();
     }
 
     teardown() {
       if (this.player) this.player.off('fullscreenchange');
-      $(window).off('resize.vac-window-resize');
+      this.eventManager.off(window, 'resize.vac-window-resize');
+      this.eventManager.offAll();
     }
   };
 };

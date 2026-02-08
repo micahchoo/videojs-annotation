@@ -6,8 +6,11 @@ const Annotation = require('../../../src/js/components/annotation'),
   expect = require('chai').expect;
 
 class MockedAnnotation extends Annotation {
-  buildComments() {
-    this.commentList = { data: [] };
+  get plugin() {
+    return { options: {}, videoSrc: 'http://example.com/video.mp4' };
+  }
+  buildComments(data) {
+    this.commentList = { data: [], _internalData: data.comments || [] };
   }
   buildMarker() {}
   buildShape() {}
@@ -38,14 +41,15 @@ describe('Annotation', () => {
       let annotation = new MockedAnnotation(annotationData, 'fakePlayerId');
       let data = annotation.data;
 
+      expect(data.type).to.equal('Annotation');
       expect(data.id).to.equal('myId');
-      expect(data.range.start).to.equal(55);
-      expect(data.range.end).to.equal(60);
-      expect(data.shape.x1).to.equal(23.47);
-      expect(data.shape.x2).to.equal(60.83);
-      expect(data.shape.y1).to.equal(9.88);
-      expect(data.shape.y2).to.equal(44.2);
-      expect(data.comments).to.be.an('array').that.is.empty;
+      expect(data.motivation).to.equal('commenting');
+      expect(data.body.value).to.equal('My comment');
+      expect(data.target.source).to.equal('http://example.com/video.mp4');
+      expect(data.target.selector.value).to.equal('t=55,60&xywh=percent:23.47,9.88,37.36,34.32');
+      expect(data.creator.name).to.equal('Alex Ackerman');
+      expect(data.creator.id).to.equal('1');
+      expect(data._replies).to.be.an('array').that.is.empty;
     });
   });
 });

@@ -23,6 +23,9 @@ class MockedAnnotationState extends AnnotationState {
   initAPI() {}
   resetData() {}
   bindEvents() {}
+  get plugin() {
+    return { options: {}, fire() {} };
+  }
   get currentTime() {
     return this._currentTime;
   }

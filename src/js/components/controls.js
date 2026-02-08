@@ -3,13 +3,14 @@
     including all functionality to add new annotations
 */
 
-const $ = require('jquery');
 const PlayerUIComponent = require('./../lib/player_ui_component');
 const Utils = require('./../lib/utils');
 const DraggableMarker = require('./draggable_marker.js');
 const SelectableShape = require('./selectable_shape.js');
 const PlayerButton = require('./player_button');
 const Annotation = require('./annotation');
+const { qs, qsa, addClass, removeClass, hasClass, css, width, height, append, remove, getVal, setText, htmlToEl } = require('../lib/dom');
+const { EventManager } = require('../lib/events');
 
 const templateName = 'controls';
 
@@ -29,6 +30,7 @@ module.exports = class Controls extends PlayerUIComponent {
     this.internalCommenting = this.plugin.options.internalCommenting;
     this.showControls = this.plugin.options.showControls;
     this.uiState = Utils.cloneObject(BASE_UI_STATE);
+    this.eventManager = new EventManager();
     this.bindEvents(bindArrowKeys);
 
     if (this.showControls) {
@@ -41,46 +43,50 @@ module.exports = class Controls extends PlayerUIComponent {
 
   // Bind all the events we need for UI interaction
   bindEvents(bindArrowKeys) {
-    this.$player
-      .on('click.vac-controls', '.vac-controls button', this.startAddNew.bind(this)) // Add new button click
-      .on('click.vac-controls', '.vac-annotation-nav .vac-a-next', () =>
-        this.plugin.annotationState.nextAnnotation()
-      ) // Click 'next' on annotation nav
-      .on('click.vac-controls', '.vac-annotation-nav .vac-a-prev', () =>
-        this.plugin.annotationState.prevAnnotation()
-      ) // Click 'prev' on annotation nav
-      .on('click.vac-controls', '.vac-video-move .vac-a-next', () => this.marker.scrubStart(1)) // Click '+1 sec' on marker nav
-      .on('click.vac-controls', '.vac-video-move .vac-a-prev', () => this.marker.scrubStart(-1)) // Click '-1 sec' on marker nav
-      .on('click.vac-controls', '.vac-frame-move .vac-f-next', () => this.marker.scrubStart(1, 'frame')) // Click '+1 frame' on frame nav
-      .on('click.vac-controls', '.vac-frame-move .vac-f-prev', () => this.marker.scrubStart(-1, 'frame')); // Click '-1 frame' on frame nav
+    const playerEl = this.player.el();
+    this.eventManager.on(playerEl, 'click.vac-controls', '.vac-controls button', this.startAddNew.bind(this)); // Add new button click
+    this.eventManager.on(playerEl, 'click.vac-controls', '.vac-annotation-nav .vac-a-next', () =>
+      this.plugin.annotationState.nextAnnotation()
+    ); // Click 'next' on annotation nav
+    this.eventManager.on(playerEl, 'click.vac-controls', '.vac-annotation-nav .vac-a-prev', () =>
+      this.plugin.annotationState.prevAnnotation()
+    ); // Click 'prev' on annotation nav
+    this.eventManager.on(playerEl, 'click.vac-controls', '.vac-video-move .vac-a-next', () => this.marker && this.marker.scrubStart(1)); // Click '+1 sec' on marker nav
+    this.eventManager.on(playerEl, 'click.vac-controls', '.vac-video-move .vac-a-prev', () => this.marker && this.marker.scrubStart(-1)); // Click '-1 sec' on marker nav
+    this.eventManager.on(playerEl, 'click.vac-controls', '.vac-frame-move .vac-f-next', () => this.marker && this.marker.scrubStart(1, 'frame')); // Click '+1 frame' on frame nav
+    this.eventManager.on(playerEl, 'click.vac-controls', '.vac-frame-move .vac-f-prev', () => this.marker && this.marker.scrubStart(-1, 'frame')); // Click '-1 frame' on frame nav
 
     if (this.internalCommenting) {
-      this.$player
-        .on('click.vac-controls', '.vac-add-controls:not(.vac-edit-controls) button', this.writeComment.bind(this)) // 'Next' button click while adding
-        .on(
-          'click.vac-controls',
-          '.vac-video-write-new.vac-is-annotation button',
-          this.saveNew.bind(this)
-        ) // 'Save' button click while adding
-        .on(
-          'click.vac-controls',
-          '.vac-add-controls:not(.vac-edit-controls) a, .vac-video-write-new.vac-is-annotation a',
-          this.cancelAddNew.bind(this)
-        ) // Cancel link click
-        .on('click.vac-controls', '.vac-edit-controls .vac-save-edit', this.saveEdit.bind(this))
-        .on('click.vac-controls', '.vac-edit-controls .vac-cancel-edit', this.cancelEdit.bind(this));
+      this.eventManager.on(playerEl, 'click.vac-controls', '.vac-add-controls:not(.vac-edit-controls) button', this.writeComment.bind(this)); // 'Next' button click while adding
+      this.eventManager.on(
+        playerEl,
+        'click.vac-controls',
+        '.vac-video-write-new.vac-is-annotation button',
+        this.saveNew.bind(this)
+      ); // 'Save' button click while adding
+      this.eventManager.on(
+        playerEl,
+        'click.vac-controls',
+        '.vac-add-controls:not(.vac-edit-controls) a, .vac-video-write-new.vac-is-annotation a',
+        this.cancelAddNew.bind(this)
+      ); // Cancel link click
+      this.eventManager.on(playerEl, 'click.vac-controls', '.vac-edit-controls .vac-save-edit', this.saveEdit.bind(this));
+      this.eventManager.on(playerEl, 'click.vac-controls', '.vac-edit-controls .vac-cancel-edit', this.cancelEdit.bind(this));
     }
     if (bindArrowKeys) {
-      $(document).on(`keyup.vac-nav-${this.playerId}`, e => this.handleArrowKeys(e)); // Use arrow keys to navigate annotations
+      this.eventManager.on(document, `keyup.vac-nav-${this.playerId}`, this.handleArrowKeys.bind(this)); // Use arrow keys to navigate annotations
     }
   }
 
   // Remove UI and unbind events for this and child components
   teardown() {
     this.clear(true);
-    this.$player.off('click.vac-controls');
-    $(document).off(`keyup.vac-nav-${this.playerId} mousemove.vac-tooltip-${this.playerId}`);
+    const playerEl = this.player.el();
+    this.eventManager.off(playerEl, '.vac-controls');
+    this.eventManager.off(document, `.vac-nav-${this.playerId}`);
+    this.eventManager.off(document, `.vac-tooltip-${this.playerId}`);
     if (this.playerButton) this.playerButton.teardown();
+    this.eventManager.offAll();
     super.teardown();
   }
 
@@ -97,18 +103,21 @@ module.exports = class Controls extends PlayerUIComponent {
         this.marker.teardown();
         this.selectableShape.teardown();
         if (this.editingAnnotation) {
-          this.editingAnnotation.marker.$el.show();
+          css(this.editingAnnotation.marker.el, { display: '' });
           this.editingAnnotation = null;
         }
       }
       this.uiState = Utils.cloneObject(BASE_UI_STATE);
-      this.$player
-        .find('.vac-video-cover-canvas')
-        .off('mousedown.vac-cursor-tooltip')
-        .off('mouseup.vac-cursor-tooltip');
+      const canvasEl = qs(this.player.el(), '.vac-video-cover-canvas');
+      if (canvasEl) {
+        this.eventManager.off(canvasEl, 'mousedown.vac-cursor-tooltip');
+        this.eventManager.off(canvasEl, 'mouseup.vac-cursor-tooltip');
+      }
     }
     this.$tooltip_ = null;
-    this.$UI.controlElements.remove();
+    // Remove each control element
+    const controlEls = qsa(this.player.el(), '.vac-control');
+    controlEls.forEach(el => remove(el));
   }
 
   // Render the UI elements (based on uiState)
@@ -129,7 +138,8 @@ module.exports = class Controls extends PlayerUIComponent {
     };
 
     const $ctrls = this.renderTemplate(templateName, data);
-    this.$player.append($ctrls);
+    const fragment = htmlToEl($ctrls, false);
+    this.player.el().appendChild(fragment);
     this.invalidateUICache();
 
     if (this.playerButton) this.playerButton.updateNumAnnotations();
@@ -183,7 +193,7 @@ module.exports = class Controls extends PlayerUIComponent {
 
   // User clicked to save a new annotation/comment during add new flow
   saveNew() {
-    const comment = this.$UI.newCommentTextarea.val();
+    const comment = getVal(this.$UI.newCommentTextarea);
     if (!comment) return; // empty comment - TODO add validation / err message
 
     const a = Annotation.newFromData(
@@ -208,7 +218,7 @@ module.exports = class Controls extends PlayerUIComponent {
 
     // Close annotation UI but keep reference
     annotation.close(true);
-    annotation.marker.$el.hide();
+    css(annotation.marker.el, { display: 'none' });
 
     this.setAddingUI();
     this.uiState.editing = true;
@@ -258,7 +268,7 @@ module.exports = class Controls extends PlayerUIComponent {
     // Teardown editing UI
     this.marker.teardown();
     this.selectableShape.teardown();
-    annotation.marker.$el.show();
+    css(annotation.marker.el, { display: '' });
     this.editingAnnotation = null;
     this.uiState.editing = false;
     this.restoreNormalUI();
@@ -276,7 +286,7 @@ module.exports = class Controls extends PlayerUIComponent {
   restoreNormalUI() {
     this.plugin.annotationState.enabled = this.plugin.active;
     this.enablePlayingAndControl();
-    $(document).off(`mousemove.vac-tooltip-${this.playerId}`);
+    this.eventManager.off(document, `mousemove.vac-tooltip-${this.playerId}`);
   }
 
   // On arrow key press, navigate to next or prev Annotation
@@ -290,15 +300,20 @@ module.exports = class Controls extends PlayerUIComponent {
 
   // Adds help text to cursor during annotation mode
   bindCursorTooltip() {
+    const tooltipEl = this.tooltipEl;
+    const coverCanvasEl = this.$UI.coverCanvas;
+    if (!tooltipEl || !coverCanvasEl) return;
+
     this.tooltipArea = Utils.areaOfHiddenEl(
-      this.$tooltip,
-      this.$UI.coverCanvas,
+      tooltipEl,
+      coverCanvasEl,
       this.UI_CLASSES.hidden
     );
 
     // Assert bounds are updated in plugin in case page was modified since creation, so tooltip math is correct
     this.plugin.setBounds(false);
-    $(document).on(
+    this.eventManager.on(
+      document,
       `mousemove.vac-tooltip-${this.playerId}`,
       Utils.throttle(event => {
         if (!this.plugin.bounds) return;
@@ -311,18 +326,18 @@ module.exports = class Controls extends PlayerUIComponent {
           y < this.plugin.bounds.top ||
           y > this.plugin.bounds.bottom;
         const withinControls = !outOfBounds && y >= this.plugin.bounds.bottomWithoutControls;
-        const markerHovered = this.$tooltip.hasClass('vac-marker-hover');
+        const markerHovered = hasClass(tooltipEl, 'vac-marker-hover');
 
         if (outOfBounds) {
-          this.$tooltip.addClass(this.UI_CLASSES.hidden);
+          addClass(tooltipEl, this.UI_CLASSES.hidden);
           return;
         }
 
         const cursorX = x - this.plugin.bounds.left;
         const cursorY = y - this.plugin.bounds.top;
         const margin = 10;
-        const rightEdge = this.$player.width();
-        const bottomEdge = this.$player.height() - this.$UI.controlBar.height();
+        const rightEdge = width(this.player.el());
+        const bottomEdge = height(this.player.el()) - height(this.$UI.controlBar);
         const atRightEdge = cursorX + this.tooltipArea.width + margin * 2 >= rightEdge;
         const atBottomEdge = cursorY + this.tooltipArea.height + margin * 2 >= bottomEdge;
 
@@ -334,13 +349,13 @@ module.exports = class Controls extends PlayerUIComponent {
 
         // hide if the cursor is over the control bar but not hovering over the draggable marker
         // also hide if mouse is down
-        if ((withinControls && !markerHovered) || this.$tooltip.hasClass('vac-cursor-dragging')) {
-          this.$tooltip.addClass(this.UI_CLASSES.hidden);
+        if ((withinControls && !markerHovered) || hasClass(tooltipEl, 'vac-cursor-dragging')) {
+          addClass(tooltipEl, this.UI_CLASSES.hidden);
         } else {
-          this.$tooltip.removeClass(this.UI_CLASSES.hidden);
+          removeClass(tooltipEl, this.UI_CLASSES.hidden);
         }
 
-        this.$tooltip.css({
+        css(tooltipEl, {
           left: `${posX}px`,
           top: `${posY}px`
         });
@@ -349,7 +364,14 @@ module.exports = class Controls extends PlayerUIComponent {
   }
 
   get $tooltip() {
-    this.$tooltip_ = this.$tooltip_ || this.$player.find('.vac-cursor-tool-tip');
+    this.$tooltip_ = this.$tooltip_ || qs(this.$player, '.vac-cursor-tool-tip');
     return this.$tooltip_;
+  }
+
+  get tooltipEl() {
+    if (this.tooltipEl_) return this.tooltipEl_;
+    const el = qs(this.player.el(), '.vac-cursor-tool-tip');
+    if (el) this.tooltipEl_ = el;
+    return el;
   }
 };

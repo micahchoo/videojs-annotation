@@ -2,7 +2,7 @@
 <HTML>
 	<HEAD>
 		<title>VideoJS Annotated Comments Test Page</title>
-		<link href="/video.js/dist/video-js.css" rel="stylesheet">
+		<link href="video.js/dist/video-js.css" rel="stylesheet">
 		<link href="assets/videojs_skin.css" rel="stylesheet">
 		<link href="assets/page.css" rel="stylesheet">
 		<link href="css/annotations.css" rel="stylesheet">
@@ -16,109 +16,132 @@
 		      return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
 		        s4() + '-' + s4() + s4() + s4();
 		    }
+			// W3C Web Annotation Data Model format
+			var ann2Id = "ann-2";
 			var annotations = [
 				{
+					"@context": "http://www.w3.org/ns/anno.jsonld",
+					"type": "Annotation",
 					"id": 1,
-					"range": {
-						"start": 55, "end": null
+					"motivation": "commenting",
+					"body": {
+						"type": "TextualBody",
+						"value": "Is the \"Stories API\" the only API we want to highlight here? It makes the system feel a little limited, even though we have robust functionality and multiple APIs",
+						"format": "text/plain"
 					},
-					"shape": {
-						"x1":23.47,"y1":9.88,"x2":60.83,"y2":44.2
-					},
-					"comments":[
-						{
-							"id": guid(),
-							"meta":{
-								"datetime": "2017-03-28T19:17:32.238Z",
-								"user_id":1,
-								"user_name": "Jack Pope"
-							},
-							"body": "Is the \"Stories API\" the only API we want to highlight here? It makes the system feel a little limited, even though we have robust functionality and multiple APIs"
+					"target": {
+						"type": "SpecificResource",
+						"source": "contently-platform-overview.mp4",
+						"selector": {
+							"type": "FragmentSelector",
+							"conformsTo": "http://www.w3.org/TR/media-frags/",
+							"value": "t=55&xywh=percent:23.47,9.88,37.36,34.32"
 						}
-					]
+					},
+					"creator": { "type": "Person", "name": "Jack Pope", "id": "1" },
+					"created": "2017-03-28T19:17:32.238Z"
 				},
 				{
-                    "id": 2,
-					"range": {
-						"start":0,"stop":65
+					"@context": "http://www.w3.org/ns/anno.jsonld",
+					"type": "Annotation",
+					"id": ann2Id,
+					"motivation": "commenting",
+					"body": {
+						"type": "TextualBody",
+						"value": "Can we replace this logo with Microsoft?",
+						"format": "text/plain"
 					},
-					"shape": {
-						"x1":0.97,"y1":65.19,"x2":36.25,"y2":97.28
-					},
-					"comments": [
-						{
-							"id": guid(),
-							"meta": {
-								"datetime":"2017-03-28T19:18:25.485Z",
-								"user_id":2,
-								"user_name": "Evan Carothers"
-							},
-						"body": "Can we replace this logo with Microsoft?"
-						},
-						{
-							id: guid(),
-							meta: {
-								"datetime":"2017-03-29T00:18:25.485Z",
-								user_id: 1,
-								user_name: "Jack Pope"
-							},
-							body: "Great idea Evan, that's a SUPER recognizable brand!\n\nAny other major company brands we are missing in this shot?"
+					"target": {
+						"type": "SpecificResource",
+						"source": "contently-platform-overview.mp4",
+						"selector": {
+							"type": "FragmentSelector",
+							"conformsTo": "http://www.w3.org/TR/media-frags/",
+							"value": "t=0,65&xywh=percent:0.97,65.19,35.28,32.09"
 						}
-					]
+					},
+					"creator": { "type": "Person", "name": "Evan Carothers", "id": "2" },
+					"created": "2017-03-28T19:18:25.485Z"
 				},
 				{
-                    "id": 3,
-					"range": {
-						"start":100,"end":130
+					"@context": "http://www.w3.org/ns/anno.jsonld",
+					"type": "Annotation",
+					"id": guid(),
+					"motivation": "replying",
+					"body": {
+						"type": "TextualBody",
+						"value": "Great idea Evan, that's a SUPER recognizable brand!\n\nAny other major company brands we are missing in this shot?",
+						"format": "text/plain"
 					},
-					"shape": null,
-					"comments": [
-						{
-							"id": guid(),
-							"meta": {
-								"datetime": "2017-03-28T19:21:41.351Z",
-								"user_id":1,
-								"user_name": "Jack Pope"
-							},
-							"body": "Can we have a music change for this final section that transitions towards the final frame? Some sweet heavy rock 80s ballad?"
-						}
-					]
+					"target": ann2Id,
+					"creator": { "type": "Person", "name": "Jack Pope", "id": "1" },
+					"created": "2017-03-29T00:18:25.485Z"
 				},
 				{
-                   	"id": 4,
-					"range": {
-						"start":21,"end":61
+					"@context": "http://www.w3.org/ns/anno.jsonld",
+					"type": "Annotation",
+					"id": 3,
+					"motivation": "commenting",
+					"body": {
+						"type": "TextualBody",
+						"value": "Can we have a music change for this final section that transitions towards the final frame? Some sweet heavy rock 80s ballad?",
+						"format": "text/plain"
 					},
-					"shape": null,
-					"comments": [
-						{
-							"id": guid(),
-							"meta": {
-								"datetime": "2017-03-28T19:21:41.351Z",
-								"user_id": 2,
-								"user_name": "Evan Carothers"
-							},
-							"body": "The music is a little loud through this section and distracts from the content and narration a bit - can we tone 'er down a couple nocks here?"
+					"target": {
+						"type": "SpecificResource",
+						"source": "contently-platform-overview.mp4",
+						"selector": {
+							"type": "FragmentSelector",
+							"conformsTo": "http://www.w3.org/TR/media-frags/",
+							"value": "t=100,130"
 						}
-					]
+					},
+					"creator": { "type": "Person", "name": "Jack Pope", "id": "1" },
+					"created": "2017-03-28T19:21:41.351Z"
 				},
 				{
-                   	"id": 5,
-					"range": {
-						"start":21,"end":null
+					"@context": "http://www.w3.org/ns/anno.jsonld",
+					"type": "Annotation",
+					"id": 4,
+					"motivation": "commenting",
+					"body": {
+						"type": "TextualBody",
+						"value": "The music is a little loud through this section and distracts from the content and narration a bit - can we tone 'er down a couple nocks here?",
+						"format": "text/plain"
 					},
-					"shape": null,
-					"comments": [
-						{
-							"id": guid(),
-							"meta": {
-								"datetime": "2017-03-28T19:21:41.351Z",
-								"user_id": 2,
-								"user_name": "Evan Carothers"
-							},
-							"body": "Testing moment vs ranged comment at same start time - activation bug"
+					"target": {
+						"type": "SpecificResource",
+						"source": "contently-platform-overview.mp4",
+						"selector": {
+							"type": "FragmentSelector",
+							"conformsTo": "http://www.w3.org/TR/media-frags/",
+							"value": "t=21,61"
 						}
-					]
+					},
+					"creator": { "type": "Person", "name": "Evan Carothers", "id": "2" },
+					"created": "2017-03-28T19:21:41.351Z"
+				},
+				{
+					"@context": "http://www.w3.org/ns/anno.jsonld",
+					"type": "Annotation",
+					"id": 5,
+					"motivation": "commenting",
+					"body": {
+						"type": "TextualBody",
+						"value": "Testing moment vs ranged comment at same start time - activation bug",
+						"format": "text/plain"
+					},
+					"target": {
+						"type": "SpecificResource",
+						"source": "contently-platform-overview.mp4",
+						"selector": {
+							"type": "FragmentSelector",
+							"conformsTo": "http://www.w3.org/TR/media-frags/",
+							"value": "t=21"
+						}
+					},
+					"creator": { "type": "Person", "name": "Evan Carothers", "id": "2" },
+					"created": "2017-03-28T19:21:41.351Z"
 				}
 			];
 		</script>
@@ -137,7 +160,7 @@
             <div class="control-section">
                 <p class="event-type"><strong>SEND:</strong> Open Annotation Event</p>
                 <label>Annotation ID</label>
-                <input id="annotation-id-input"></input>
+                <input id="annotation-id-input">
                 <button id="fire-open-annotation">FIRE</button>
             </div>
 
@@ -170,19 +193,19 @@
 				<p class="event-type"><strong>SEND:</strong> New Annotation Event</p>
 				<label>Comment body</label>
 				<textarea id="new-annotation-comment-body"></textarea>
-				<input type="hidden" id="new-annotation-range-start"></input>
-				<input type="hidden" id="new-annotation-range-end"></input>
-				<input type="hidden" id="new-annotation-shape-x1"></input>
-				<input type="hidden" id="new-annotation-shape-x2"></input>
-				<input type="hidden" id="new-annotation-shape-y1"></input>
-				<input type="hidden" id="new-annotation-shape-y2"></input>
+				<input type="hidden" id="new-annotation-range-start">
+				<input type="hidden" id="new-annotation-range-end">
+				<input type="hidden" id="new-annotation-shape-x1">
+				<input type="hidden" id="new-annotation-shape-x2">
+				<input type="hidden" id="new-annotation-shape-y1">
+				<input type="hidden" id="new-annotation-shape-y2">
 				<button id="fire-new-annotation">Save</button>
 			</div>
 
 			<div class="control-section" id="new-comment-form">
 				<p class="event-type"><strong>SEND:</strong> New Comment Event</p>
 				<label>Annotation ID</label>
-				<input id="new-comment-annotation-id"></input>
+				<input id="new-comment-annotation-id">
 				<label>Comment Body</label>
 				<textarea id="new-comment-body"></textarea>
 				<button id="fire-new-comment">Save</button>
@@ -191,14 +214,13 @@
 			<div class="control-section" id="destroy-comment-form">
 				<p class="event-type"><strong>SEND:</strong> Destroy Comment Event</p>
 				<label>Comment ID</label>
-				<input id="destroy-comment-id"></input>
+				<input id="destroy-comment-id">
 				<button id="fire-destroy-comment">FIRE</button>
 			</div>
         </div>
 
-		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-		<script src="/video.js/dist/video.min.js"></script>
-		<script src="/videojs-annotation-comments.js"></script>
+		<script src="video.js/dist/video.min.js"></script>
+		<script src="videojs-annotation.js"></script>
 		<script>
 			window.VAC_DEBUG = true;
 			var player = videojs('the_video');
@@ -216,63 +238,62 @@
 				startInAnnotationMode: true
 			});
 
-			$("#fire-open-annotation").on("click", function() {
-                var id = $("#annotation-id-input").val();
-                plugin.fire("openAnnotation", {id: id});
-            });
+			document.getElementById("fire-open-annotation").addEventListener("click", function() {
+				var id = document.getElementById("annotation-id-input").value;
+				plugin.fire("openAnnotation", {id: id});
+			});
 
-			$("#fire-close-active-annotation").on("click", function() {
+			document.getElementById("fire-close-active-annotation").addEventListener("click", function() {
 				plugin.fire("closeActiveAnnotation", {});
 			});
 
-			$("#fire-adding-annotation").on("click", function() {
+			document.getElementById("fire-adding-annotation").addEventListener("click", function() {
 				plugin.fire("addingAnnotation");
 			});
 
-			$("#fire-cancel-adding-annotation").on("click", function() {
+			document.getElementById("fire-cancel-adding-annotation").addEventListener("click", function() {
 				plugin.fire("cancelAddingAnnotation");
-				$("#new-annotation-form").addClass("hidden");
+				document.getElementById("new-annotation-form").classList.add("hidden");
 			});
 
-			$("#fire-toggle-annotation-mode").on("click", function(){
+			document.getElementById("fire-toggle-annotation-mode").addEventListener("click", function(){
 				plugin.fire("toggleAnnotationMode");
 			});
 
-			$("#fire-new-annotation").on("click", function() {
+			document.getElementById("fire-new-annotation").addEventListener("click", function() {
 				var annotation = {
 					id: 999,
 					range: {
-						start: $("#new-annotation-range-start").val(),
-						end: $("#new-annotation-range-end").val()
+						start: document.getElementById("new-annotation-range-start").value,
+						end: document.getElementById("new-annotation-range-end").value
 					},
 					shape: {
-						x1: $("#new-annotation-shape-x1").val(),
-						x2: $("#new-annotation-shape-x2").val(),
-						y1: $("#new-annotation-shape-y1").val(),
-						y2: $("#new-annotation-shape-y2").val(),
+						x1: document.getElementById("new-annotation-shape-x1").value,
+						x2: document.getElementById("new-annotation-shape-x2").value,
+						y1: document.getElementById("new-annotation-shape-y1").value,
+						y2: document.getElementById("new-annotation-shape-y2").value,
 					},
-					commentStr: $("#new-annotation-comment-body").val()
+					commentStr: document.getElementById("new-annotation-comment-body").value
 				};
 				plugin.fire("newAnnotation", annotation);
 			});
 
-			$("#fire-new-comment").on("click", function() {
+			document.getElementById("fire-new-comment").addEventListener("click", function() {
 				var data = {
-					annotationId: $("#new-comment-annotation-id").val(),
-					body: $("#new-comment-body").val()
-				}
-
+					annotationId: document.getElementById("new-comment-annotation-id").value,
+					body: document.getElementById("new-comment-body").value
+				};
 				plugin.fire("newComment", data);
 			});
 
-			$("#fire-destroy-comment").on("click", function() {
-				var id = $("#destroy-comment-id").val();
+			document.getElementById("fire-destroy-comment").addEventListener("click", function() {
+				var id = document.getElementById("destroy-comment-id").value;
 				plugin.fire("destroyComment", {id: id});
 			});
 
 			plugin.registerListener("annotationOpened", function(event) {
 				var id = event.detail.annotation.id;
-				$("#annotation-opened-id").html(id);
+				document.getElementById("annotation-opened-id").textContent = id;
 			});
 
 			plugin.registerListener("addingAnnotationDataChanged", function(event) {
@@ -282,19 +303,19 @@
 			plugin.registerListener("enteredAddingAnnotation", function(event) {
 				var range = event.detail.range;
 				console.log("Starting add annotation process");
-				$("#new-annotation-form").removeClass("hidden");
-				$("#new-annotation-range-start").val(range.start);
+				document.getElementById("new-annotation-form").classList.remove("hidden");
+				document.getElementById("new-annotation-range-start").value = range.start;
 			});
 
 			plugin.registerListener("addingAnnotationDataChanged", function(event) {
 				if(event.detail.shape) {
-					$("#new-annotation-shape-x1").val(event.detail.shape.x1);
-					$("#new-annotation-shape-x2").val(event.detail.shape.x2);
-					$("#new-annotation-shape-y1").val(event.detail.shape.y1);
-					$("#new-annotation-shape-y2").val(event.detail.shape.y2);
+					document.getElementById("new-annotation-shape-x1").value = event.detail.shape.x1;
+					document.getElementById("new-annotation-shape-x2").value = event.detail.shape.x2;
+					document.getElementById("new-annotation-shape-y1").value = event.detail.shape.y1;
+					document.getElementById("new-annotation-shape-y2").value = event.detail.shape.y2;
 				} else {
-					$("#new-annotation-range-start").val(event.detail.range.start);
-					$("#new-annotation-range-end").val(event.detail.range.end);
+					document.getElementById("new-annotation-range-start").value = event.detail.range.start;
+					document.getElementById("new-annotation-range-end").value = event.detail.range.end;
 				}
 			});
 		</script>

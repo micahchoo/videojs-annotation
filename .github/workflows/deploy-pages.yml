@@ -1,0 +1,64 @@
+name: Deploy Test Page to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+      - name: Assemble pages site
+        run: |
+          mkdir -p _site/css
+          mkdir -p _site/assets
+          mkdir -p _site/video.js/dist
+
+          # Built plugin
+          cp build/videojs-annotation.js _site/
+          cp build/css/annotations.css _site/css/
+
+          # video.js from node_modules
+          cp node_modules/video.js/dist/video.min.js _site/video.js/dist/
+          cp node_modules/video.js/dist/video-js.css _site/video.js/dist/
+
+          # Test page assets
+          cp test/test.html _site/index.html
+          cp test/test_api.html _site/test_api.html
+          cp test/assets/page.css _site/assets/
+          cp test/assets/videojs_skin.css _site/assets/
+          cp test/assets/comment_icon.svg _site/assets/
+          cp test/contently-platform-overview.mp4 _site/
+
+      - uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

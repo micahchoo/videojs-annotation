@@ -99,11 +99,17 @@ module.exports = class EventDispatcher {
     if (register) this.registeredListeners.push(type);
   }
 
-  // Unbind a listener
-  unregisterListener(type) {
-    this.eventEmitter.off(type);
-    const i = this.registeredListeners.indexOf(type);
-    this.registeredListeners.splice(i, 1);
+  // Unbind a listener. If callback is provided, removes only that specific handler
+  // without affecting the internal registeredListeners tracking.
+  // If no callback, removes all handlers for the type and unregisters it.
+  unregisterListener(type, callback) {
+    if (callback) {
+      this.eventEmitter.off(type, callback);
+    } else {
+      this.eventEmitter.off(type);
+      const i = this.registeredListeners.indexOf(type);
+      if (i !== -1) this.registeredListeners.splice(i, 1);
+    }
   }
 
   // Trigger an event
@@ -114,9 +120,11 @@ module.exports = class EventDispatcher {
   }
 
   teardown() {
-    this.registeredListeners.forEach(type => {
+    const types = this.registeredListeners.slice();
+    types.forEach(type => {
       this.unregisterListener(type);
     });
+    this.registeredListeners = [];
   }
 
   logCallback(eventName, className, event) {

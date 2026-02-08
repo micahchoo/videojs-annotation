@@ -2,9 +2,10 @@
     Component for a timeline marker with capabilities to render on timeline, including tooltip for comment
 */
 
-const $ = require('jquery');
-const PlayerUIComponent = require('./../lib/player_ui_component');
-const Utils = require('./../lib/utils');
+const PlayerUIComponent = require('../lib/player_ui_component');
+const Utils = require('../lib/utils');
+const { htmlToEl, addClass, removeClass, closest, append } = require('../lib/dom');
+const { sharedManager: eventManager } = require('../lib/events');
 
 const markerTemplateName = 'marker';
 const markerWrapTemplateName = 'marker_wrap';
@@ -18,50 +19,51 @@ module.exports = class Marker extends PlayerUIComponent {
     this.annotationType = annotationType;
     this.templateName = markerTemplateName;
 
-    if (!this.$UI.markerWrap.length) {
-      this.$UI.timeline.append(this.renderTemplate(markerWrapTemplateName));
+    if (!this.$UI.markerWrap) {
+      const wrapEl = htmlToEl(this.renderTemplate(markerWrapTemplateName), true);
+      this.$UI.timeline.appendChild(wrapEl);
       this.invalidateUICache();
     }
   }
 
   // Set this marker as active (highlight) and optionally show tooltip also
   setActive(showTooltip = false) {
-    this.$el.addClass(this.UI_CLASSES.active);
-    if (showTooltip) this.$el.addClass('vac-force-tooltip');
+    addClass(this.el, this.UI_CLASSES.active);
+    if (showTooltip) addClass(this.el, 'vac-force-tooltip');
   }
 
   // Deactivate this marker
   deactivate() {
-    this.$el.removeClass(`${this.UI_CLASSES.active} vac-force-tooltip`);
+    removeClass(this.el, this.UI_CLASSES.active);
+    removeClass(this.el, 'vac-force-tooltip');
   }
 
   // Draw marker on timeline for this.range;
   render() {
     // clear existing marker if this one was already rendered
-    this.$UI.timeline.find(`[data-marker-id="${this.componentId}"]`).remove();
+    const existing = this.$UI.timeline.querySelector(`[data-marker-id="${this.componentId}"]`);
+    if (existing) existing.remove();
 
     // Bind to local instance var, add to DOM, and setup events
-    this.$el = $(this.renderTemplate(this.templateName, this.markerTemplateData));
-    this.$UI.markerWrap.append(this.$el);
+    this.el = htmlToEl(this.renderTemplate(this.templateName, this.markerTemplateData), true);
+    this.$el = this.el; // keep reference for compatibility (plain element)
+    append(this.$UI.markerWrap, this.el);
     this.bindMarkerEvents();
   }
 
   // Bind needed events for this marker
   bindMarkerEvents() {
     // handle dimming other markers + highlighting this one on mouseenter/leave
-    this.$el
-      .on('mouseenter.vac-marker', () => {
-        this.$el
-          .addClass('vac-hovering')
-          .closest('.vac-marker-wrap')
-          .addClass('vac-dim-all');
-      })
-      .on('mouseleave.vac-marker', () => {
-        this.$el
-          .removeClass('vac-hovering')
-          .closest('.vac-marker-wrap')
-          .removeClass('vac-dim-all');
-      });
+    eventManager.on(this.el, 'mouseenter.vac-marker', () => {
+      addClass(this.el, 'vac-hovering');
+      const wrap = closest(this.el, '.vac-marker-wrap');
+      if (wrap) addClass(wrap, 'vac-dim-all');
+    });
+    eventManager.on(this.el, 'mouseleave.vac-marker', () => {
+      removeClass(this.el, 'vac-hovering');
+      const wrap = closest(this.el, '.vac-marker-wrap');
+      if (wrap) removeClass(wrap, 'vac-dim-all');
+    });
   }
 
   // Build object for template
@@ -89,10 +91,7 @@ module.exports = class Marker extends PlayerUIComponent {
 
   // Unbind event listeners on teardown and remove DOM nodes
   teardown() {
-    this.$el
-      .off('mouseenter.vac-marker')
-      .off('mouseleave.vac-marker')
-      .off('click.vac-marker');
+    eventManager.off(this.el, '.vac-marker');
     super.teardown();
   }
 };

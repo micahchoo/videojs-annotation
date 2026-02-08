@@ -182,19 +182,17 @@ module.exports = {
   // Returns the height and width of an element that is not visible
   // clones el and tricks DOM into rendering it w the correct size
   // beware the container may be important for scoped styles
-  areaOfHiddenEl: ($el, $container, hideClass = '') => {
-    const $clone = $el.clone();
+  areaOfHiddenEl: (el, container, hideClass = '') => {
+    const clone = el.cloneNode(true);
     const data = {};
-    $clone.css({
-      visibility: 'hidden',
-      display: 'inline-block'
-    });
-    $clone.removeClass(hideClass);
-    $container.append($clone);
-    data.width = $clone.outerWidth();
-    data.height = $clone.outerHeight();
-    $clone.remove();
-
+    clone.style.visibility = 'hidden';
+    clone.style.display = 'inline-block';
+    if (hideClass) clone.classList.remove(hideClass);
+    container.appendChild(clone);
+    const rect = clone.getBoundingClientRect();
+    data.width = rect.width;
+    data.height = rect.height;
+    container.removeChild(clone);
     return data;
   },
 
