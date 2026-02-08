@@ -6,8 +6,6 @@
 const $ = require('jquery');
 
 module.exports = videojs => {
-  require('./lib/polyfills');
-
   const Plugin = videojs.getPlugin('plugin');
   const Utils = require('./lib/utils');
   const Controls = require('./components/controls');
@@ -23,12 +21,18 @@ module.exports = videojs => {
     showFullScreen: true,
     showMarkerShapeAndTooltips: true,
     internalCommenting: true,
-    startInAnnotationMode: false
+    startInAnnotationMode: false,
+    frameRate: null,
+    allowEdit: true,
+    allowDelete: true,
+    allowAdd: true,
+    restrictEditToOwner: false,
+    restrictDeleteToOwner: false
   });
 
   return class AnnotationComments extends Plugin {
     constructor(player, options) {
-      options = Object.assign(Utils.cloneObject(DEFAULT_OPTIONS), options);
+      options = Utils.safeAssign(Utils.cloneObject(DEFAULT_OPTIONS), options);
       super(player, options);
 
       this.eventDispatcher = new EventDispatcher();

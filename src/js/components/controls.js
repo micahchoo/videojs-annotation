@@ -17,7 +17,8 @@ const templateName = 'controls';
 // default value for each item in the state
 const BASE_UI_STATE = Object.freeze({
   adding: false, // Are we currently adding a new annotation? (step 1 of flow)
-  writingComment: false // Are we currently writing the comment for annotation (step 2 of flow)
+  writingComment: false, // Are we currently writing the comment for annotation (step 2 of flow)
+  editing: false // Are we currently editing an existing annotation's range/shape?
 });
 
 module.exports = class Controls extends PlayerUIComponent {
@@ -49,11 +50,13 @@ module.exports = class Controls extends PlayerUIComponent {
         this.plugin.annotationState.prevAnnotation()
       ) // Click 'prev' on annotation nav
       .on('click.vac-controls', '.vac-video-move .vac-a-next', () => this.marker.scrubStart(1)) // Click '+1 sec' on marker nav
-      .on('click.vac-controls', '.vac-video-move .vac-a-prev', () => this.marker.scrubStart(-1)); // Click '-1 sec' on marker nav
+      .on('click.vac-controls', '.vac-video-move .vac-a-prev', () => this.marker.scrubStart(-1)) // Click '-1 sec' on marker nav
+      .on('click.vac-controls', '.vac-frame-move .vac-f-next', () => this.marker.scrubStart(1, 'frame')) // Click '+1 frame' on frame nav
+      .on('click.vac-controls', '.vac-frame-move .vac-f-prev', () => this.marker.scrubStart(-1, 'frame')); // Click '-1 frame' on frame nav
 
     if (this.internalCommenting) {
       this.$player
-        .on('click.vac-controls', '.vac-add-controls button', this.writeComment.bind(this)) // 'Next' button click while adding
+        .on('click.vac-controls', '.vac-add-controls:not(.vac-edit-controls) button', this.writeComment.bind(this)) // 'Next' button click while adding
         .on(
           'click.vac-controls',
           '.vac-video-write-new.vac-is-annotation button',
@@ -61,9 +64,11 @@ module.exports = class Controls extends PlayerUIComponent {
         ) // 'Save' button click while adding
         .on(
           'click.vac-controls',
-          '.vac-add-controls a, .vac-video-write-new.vac-is-annotation a',
+          '.vac-add-controls:not(.vac-edit-controls) a, .vac-video-write-new.vac-is-annotation a',
           this.cancelAddNew.bind(this)
-        ); // Cancel link click
+        ) // Cancel link click
+        .on('click.vac-controls', '.vac-edit-controls .vac-save-edit', this.saveEdit.bind(this))
+        .on('click.vac-controls', '.vac-edit-controls .vac-cancel-edit', this.cancelEdit.bind(this));
     }
     if (bindArrowKeys) {
       $(document).on(`keyup.vac-nav-${this.playerId}`, e => this.handleArrowKeys(e)); // Use arrow keys to navigate annotations
@@ -87,6 +92,15 @@ module.exports = class Controls extends PlayerUIComponent {
         this.marker.teardown();
         this.selectableShape.teardown();
       }
+      if (this.uiState.editing) {
+        this.restoreNormalUI();
+        this.marker.teardown();
+        this.selectableShape.teardown();
+        if (this.editingAnnotation) {
+          this.editingAnnotation.marker.$el.show();
+          this.editingAnnotation = null;
+        }
+      }
       this.uiState = Utils.cloneObject(BASE_UI_STATE);
       this.$player
         .find('.vac-video-cover-canvas')
@@ -101,21 +115,29 @@ module.exports = class Controls extends PlayerUIComponent {
   render(reset = false) {
     this.clear(reset);
     const data = {
-      rangeStr: this.marker ? Utils.humanTime(this.marker.range) : null,
+      rangeStr: this.marker
+        ? (this.plugin.options.frameRate
+          ? Utils.humanTimeFrames(this.marker.range, this.plugin.options.frameRate)
+          : Utils.humanTime(this.marker.range))
+        : null,
       showNav: this.plugin.annotationState.annotations.length > 1,
       ...this.uiState,
       internalCommenting: this.internalCommenting,
-      showControls: this.showControls
+      showControls: this.showControls,
+      allowAdd: this.plugin.options.allowAdd,
+      frameRate: this.plugin.options.frameRate
     };
 
     const $ctrls = this.renderTemplate(templateName, data);
     this.$player.append($ctrls);
+    this.invalidateUICache();
 
     if (this.playerButton) this.playerButton.updateNumAnnotations();
   }
 
   // User clicked to cancel in-progress add - restore to normal state
   cancelAddNew() {
+    if (this.uiState.editing) return;
     if (!(this.uiState.adding || this.uiState.writingComment)) return;
     this.render(true);
     this.marker.teardown();
@@ -132,9 +154,17 @@ module.exports = class Controls extends PlayerUIComponent {
     this.render();
 
     // construct new range and create marker
+    const frameRate = this.plugin.options.frameRate;
+    let startTime;
+    if (frameRate) {
+      const frame = Math.round(this.currentTime * frameRate);
+      startTime = frame / frameRate;
+    } else {
+      startTime = parseInt(this.currentTime, 10);
+    }
     const range = {
-      start: parseInt(this.currentTime, 10),
-      stop: parseInt(this.currentTime, 10)
+      start: startTime,
+      stop: startTime
     };
     this.marker = new DraggableMarker(this.player, range);
     this.selectableShape = new SelectableShape(this.player);
@@ -165,6 +195,75 @@ module.exports = class Controls extends PlayerUIComponent {
     this.plugin.annotationState.addNewAnnotation(a);
 
     this.cancelAddNew();
+  }
+
+  // Start editing an existing annotation's range/shape
+  startEdit(annotation) {
+    if (!this.plugin.active) this.plugin.toggleAnnotationMode();
+
+    this.player.pause();
+    this.editingAnnotation = annotation;
+    this.editOriginalRange = Utils.cloneObject(annotation.range);
+    this.editOriginalShape = annotation.shape ? Utils.cloneObject(annotation.shape) : null;
+
+    // Close annotation UI but keep reference
+    annotation.close(true);
+    annotation.marker.$el.hide();
+
+    this.setAddingUI();
+    this.uiState.editing = true;
+    this.render();
+
+    // Create draggable marker with existing range
+    const range = Utils.cloneObject(annotation.range);
+    this.marker = new DraggableMarker(this.player, range);
+    this.selectableShape = new SelectableShape(this.player, annotation.shape);
+
+    if (!this.showControls) this.bindCursorTooltip();
+  }
+
+  // Save edits to the annotation
+  saveEdit() {
+    const annotation = this.editingAnnotation;
+    annotation.range = Utils.cloneObject(this.marker.range);
+    if (this.selectableShape.shape) {
+      annotation.shape = Utils.cloneObject(this.selectableShape.shape);
+    }
+    annotation.secondsActive = annotation.buildSecondsActiveArray();
+
+    // Rebuild marker
+    annotation.marker.teardown();
+    annotation.buildMarker();
+    annotation.bindEvents();
+
+    // Teardown editing UI
+    this.marker.teardown();
+    this.selectableShape.teardown();
+    this.editingAnnotation = null;
+    this.uiState.editing = false;
+    this.restoreNormalUI();
+    this.render(false);
+    this.marker = null;
+
+    this.plugin.annotationState.stateChanged();
+    this.plugin.fire('annotationEdited', { id: annotation.id, annotation: annotation.data });
+  }
+
+  // Cancel editing, restore original range/shape
+  cancelEdit() {
+    const annotation = this.editingAnnotation;
+    annotation.range = this.editOriginalRange;
+    annotation.shape = this.editOriginalShape;
+
+    // Teardown editing UI
+    this.marker.teardown();
+    this.selectableShape.teardown();
+    annotation.marker.$el.show();
+    this.editingAnnotation = null;
+    this.uiState.editing = false;
+    this.restoreNormalUI();
+    this.render(false);
+    this.marker = null;
   }
 
   // Change normal UI (hide markers, hide playback, etc) on init add state

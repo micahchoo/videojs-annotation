@@ -37,6 +37,7 @@ module.exports = class CommentList extends PlayerUIComponent {
         this.handleDeleteAnnotationClick.bind(this)
       ) // Delete annotation with main delete button
       .on('click.vac-comment', '.vac-delete-comment', this.destroyComment.bind(this)) // Delete comment with delete comment button
+      .on('click.vac-comment', '.vac-edit-annotation', this.handleEditAnnotationClick_.bind(this)) // Edit annotation
       .on(
         'mousewheel.vac-comment DOMMouseScroll.vac-comment',
         '.vac-comments-wrap',
@@ -61,14 +62,25 @@ module.exports = class CommentList extends PlayerUIComponent {
 
   // Render CommentList UI with all comments using template
   render() {
+    const userId = this.plugin.meta.user_id;
+    const ownerId = this.comments[0] && this.comments[0].meta.user_id;
+    const isOwner = userId && ownerId && userId === ownerId;
+    const allowEdit = this.plugin.options.allowEdit && (!this.plugin.options.restrictEditToOwner || isOwner);
+    const allowDelete = this.plugin.options.allowDelete && (!this.plugin.options.restrictDeleteToOwner || isOwner);
+
     this.$el = $(
       this.renderTemplate(commentListTemplateName, {
-        commentsHTML: this.comments.map(c => c.HTML),
-        rangeStr: Utils.humanTime(this.annotation.range)
+        commentsHTML: this.comments.map(c => Utils.sanitizeCommentHTML(c.HTML)),
+        rangeStr: this.plugin.options.frameRate
+          ? Utils.humanTimeFrames(this.annotation.range, this.plugin.options.frameRate)
+          : Utils.humanTime(this.annotation.range),
+        allowEdit,
+        allowDelete
       })
     );
 
     this.$player.append(this.$el);
+    this.invalidateUICache();
     this.$wrap = this.$UI.commentsContainer;
     this.bindListEvents();
   }
@@ -113,11 +125,20 @@ module.exports = class CommentList extends PlayerUIComponent {
 
     // Don't mutate UI if comment is being created for an inactive annotation (via API)
     if (this.annotation.isActive) {
-      this.reRender(false);
+      this.appendComment(comment);
       this.closeNewComment();
     }
 
-    this.plugin.annotationState.stateChanged();
+    this.plugin.annotationState.stateChanged(true);
+    this.plugin.fire('commentAdded', { annotationId: this.annotation.id, comment: comment.data });
+  }
+
+  // Append a single comment to the list without full re-render
+  appendComment(comment) {
+    if (!this.$el) return this.reRender(false);
+    const sanitizedHTML = Utils.sanitizeCommentHTML(comment.HTML);
+    const $comment = $(sanitizedHTML);
+    this.$el.find('.vac-reply-btn').before($comment);
   }
 
   // Cancel comment adding process
@@ -139,9 +160,10 @@ module.exports = class CommentList extends PlayerUIComponent {
       const i = this.comments.indexOf(comment);
       this.comments.splice(i, 1);
       this.reRender();
+      this.plugin.fire('commentDeleted', { annotationId, commentId });
     }
 
-    this.plugin.annotationState.stateChanged();
+    this.plugin.annotationState.stateChanged(true);
   }
 
   findCommentId(event) {
@@ -168,15 +190,13 @@ module.exports = class CommentList extends PlayerUIComponent {
 
     // if scrolling into top of div
     if ($target.scrollTop() < 20 && dir == 'up') {
-      $target.stop();
-      $target.animate({ scrollTop: 0 }, 100);
+      event.currentTarget.scrollTo({ top: 0, behavior: 'smooth' });
       event.preventDefault();
     }
 
     // if scrolling into bottom of div
     if ($target.scrollTop() > scrollDiff - 10 && dir == 'down') {
-      $target.stop();
-      $target.animate({ scrollTop: height + 40 }, 100);
+      event.currentTarget.scrollTo({ top: height + 40, behavior: 'smooth' });
       event.preventDefault();
     }
   }
@@ -186,6 +206,11 @@ module.exports = class CommentList extends PlayerUIComponent {
     this.comments.sort((a, b) => {
       return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0;
     });
+  }
+
+  // Edit the annotation (start edit flow)
+  handleEditAnnotationClick_() {
+    this.plugin.controls.startEdit(this.annotation);
   }
 
   // Delete the annotation
@@ -207,6 +232,7 @@ module.exports = class CommentList extends PlayerUIComponent {
 
   // Teardown CommentList UI, unbind events
   teardown(destroyComments = true) {
+    this.closeNewComment();
     if (this.$el) {
       this.$el.off('click.vac-comment mousewheel.vac-comment DOMMouseScroll.vac-comment');
     }

@@ -12,7 +12,8 @@ module.exports = class PlayerUIComponent extends PlayerComponent {
   // helpers to get various UI components of the player quickly, keeping commonly reused class names
   // consolidated in case of need to change in the future (and for quick access)
   get $UI() {
-    return Object.freeze({
+    if (this._$UICache) return this._$UICache;
+    this._$UICache = Object.freeze({
       commentsContainer: this.$player.find('.vac-comments-container'), // outer container for all comments
       controlElements: this.$player.find('.vac-control'), // Each of multiple control elements in the control bar
       newCommentTextarea: this.$player.find('.vac-video-write-new textarea'), // Textarea for writing a new comment
@@ -22,6 +23,12 @@ module.exports = class PlayerUIComponent extends PlayerComponent {
       markerWrap: this.$player.find('.vac-marker-wrap'), // wrapper element to place markers in on timeline
       coverCanvas: this.$player.find('.vac-video-cover-canvas') // Player cover during adding annotation state
     });
+    return this._$UICache;
+  }
+
+  // Invalidate the cached $UI references (call after structural DOM changes)
+  invalidateUICache() {
+    this._$UICache = null;
   }
 
   // utility classes used in various components
@@ -82,6 +89,7 @@ module.exports = class PlayerUIComponent extends PlayerComponent {
   // Provide basic teardown function to inherit
   teardown() {
     if (this.$el) this.$el.remove();
+    this.invalidateUICache();
     super.teardown();
   }
 };

@@ -276,8 +276,8 @@ $ui-class-play-disabled: ".vac-disable-play";
 				}
 			}
 		}
-		// Wrapper for controls to go to <prev|next> annotation and to scrub +/- 1 sec
-		.vac-annotation-nav, .vac-video-move{
+		// Wrapper for controls to go to <prev|next> annotation and to scrub +/- 1 sec/frame
+		.vac-annotation-nav, .vac-video-move, .vac-frame-move{
 			margin-top: 8px;
 			width: 100%;
 			display:flex;
@@ -295,7 +295,7 @@ $ui-class-play-disabled: ".vac-disable-play";
 					background-color: $secondaryColor;
 					color: $black;
 				}
-				&.vac-a-prev{
+				&.vac-a-prev, &.vac-f-prev{
 					margin-right: 1px;
 				}
 			}

@@ -4,6 +4,7 @@
 
 const $ = require('jquery');
 const PlayerUIComponent = require('./../lib/player_ui_component');
+const Utils = require('./../lib/utils');
 
 module.exports = class Shape extends PlayerUIComponent {
   constructor(player, shape = null) {
@@ -24,11 +25,15 @@ module.exports = class Shape extends PlayerUIComponent {
 
   // Set/update the dimensions of the shape based  on this.shape
   setDimsFromShape() {
+    const x1 = Utils.clampNumber(this.shape.x1, 0, 100);
+    const y1 = Utils.clampNumber(this.shape.y1, 0, 100);
+    const x2 = Utils.clampNumber(this.shape.x2, 0, 100);
+    const y2 = Utils.clampNumber(this.shape.y2, 0, 100);
     this.$el.css({
-      left: `${this.shape.x1}%`,
-      top: `${this.shape.y1}%`,
-      width: `${this.shape.x2 - this.shape.x1}%`,
-      height: `${this.shape.y2 - this.shape.y1}%`
+      left: `${x1}%`,
+      top: `${y1}%`,
+      width: `${x2 - x1}%`,
+      height: `${y2 - y1}%`
     });
   }
 };

@@ -31,7 +31,13 @@ module.exports = class AnnotationState extends PlayerComponent {
 
   // Sets _annotations w/Annoation objects from input array
   set annotations(annotationsData) {
-    this._annotations = annotationsData.map(a => new Annotation(a, this.player));
+    this._annotations = annotationsData.map(a => {
+      if (a.range) a.range = Utils.validateRange(a.range);
+      if (a.shape) a.shape = Utils.validateShape(a.shape);
+      if (a.markerClass) a.markerClass = Utils.sanitizeCSSClassName(a.markerClass);
+      if (a.annotationType) a.annotationType = Utils.sanitizeCSSClassName(a.annotationType);
+      return new Annotation(a, this.player);
+    });
     this.sortAnnotations();
     this.rebuildAnnotationTimeMap();
   }
@@ -71,20 +77,51 @@ module.exports = class AnnotationState extends PlayerComponent {
     this._annotations.push(annotation);
     this.openAnnotation(annotation, true, true, false, true);
     this.stateChanged();
+    this.plugin.fire('annotationAdded', { annotation: annotation.data });
   }
 
   // Create and add a annotation
   createAndAddAnnotation(data) {
     this.plugin.controls.uiState.adding && this.plugin.controls.cancelAddNew();
 
+    if (data.range) data.range = Utils.validateRange(data.range);
+    if (data.shape) data.shape = Utils.validateShape(data.shape);
+    const markerClass = Utils.sanitizeCSSClassName(data.markerClass);
+    const annotationType = Utils.sanitizeCSSClassName(data.annotationType);
+
     const annotation = Annotation.newFromData(
       data.range,
       data.shape,
       data.commentStr || '',
       this.plugin,
-      data.id
+      data.id,
+      markerClass,
+      annotationType
     );
     this.addNewAnnotation(annotation);
+  }
+
+  // Programmatic edit of an annotation's range/shape by ID
+  editAnnotationById(id, range, shape) {
+    const annotation = this.findAnnotation(id);
+    if (!annotation) return;
+    if (annotation.isOpen) annotation.close(true);
+    if (range) annotation.range = Utils.validateRange(Utils.parseIntObj(range));
+    if (shape) annotation.shape = Utils.validateShape(Utils.parseIntObj(shape));
+    annotation.secondsActive = annotation.buildSecondsActiveArray();
+    annotation.marker.teardown();
+    annotation.buildMarker();
+    annotation.marker.$el.off('click.vac-marker');
+    annotation.bindEvents();
+    this.stateChanged();
+    this.plugin.fire('annotationEdited', { id: annotation.id, annotation: annotation.data });
+  }
+
+  // Replace all annotations with new data
+  setAnnotationsFromData(annotationsData) {
+    this.annotations.forEach(a => a.teardown(false));
+    this.annotations = annotationsData;
+    this.stateChanged();
   }
 
   // Destroy an existing annotation
@@ -106,6 +143,7 @@ module.exports = class AnnotationState extends PlayerComponent {
   setLiveAnnotation() {
     if (!this.enabled) return;
     const time = Math.floor(this.currentTime);
+    const frameRate = this.plugin.options.frameRate;
 
     if (this.skipLiveCheck) {
       if (time !== this.lastVideoTime) this.skipLiveCheck = false;
@@ -115,15 +153,24 @@ module.exports = class AnnotationState extends PlayerComponent {
     const matches = this.activeAnnotationsForTime(time);
     if (!matches.length) return this.activeAnnotation.close();
 
+    // When using frameRate, filter candidates by precise float time
+    let filteredMatches = matches;
+    if (frameRate) {
+      const preciseTime = this.currentTime;
+      filteredMatches = matches.filter(i => {
+        const ann = this.annotations[i];
+        const end = ann.range.end || ann.range.start + 1 / frameRate;
+        return preciseTime >= ann.range.start && preciseTime <= end;
+      });
+      if (!filteredMatches.length) return this.activeAnnotation.close();
+    }
+
     // Set live annotation as the last match
-    const liveAnnotation = this.annotations[matches[matches.length - 1]];
+    const liveAnnotation = this.annotations[filteredMatches[filteredMatches.length - 1]];
 
     // Special cases if this or another annotation is active
     if (this.activeAnnotation.range) {
       if (liveAnnotation === this.activeAnnotation) return;
-      // Check if the active annotation and live annotation share a start time
-      // Is that start time at the current playhead?
-      // If so, don't switch which is active.
       const liveStart = liveAnnotation.range.start;
       const activeStart = this.activeAnnotation.range.start;
       if (liveStart === activeStart && liveStart === time) return;
@@ -145,14 +192,17 @@ module.exports = class AnnotationState extends PlayerComponent {
     */
   rebuildAnnotationTimeMap() {
     const timeMap = {};
-    this.annotations.forEach(annotation => {
+    const index = {};
+    this.annotations.forEach((annotation, i) => {
+      index[annotation.id] = annotation;
       annotation.secondsActive.forEach(second => {
         const val = timeMap[second] || [];
-        val.push(this.annotations.indexOf(annotation));
+        val.push(i);
         timeMap[second] = val;
       });
     });
     this.annotationTimeMap = timeMap;
+    this._annotationIndex = index;
   }
 
   // Close active annotation and remove reference in state
@@ -186,7 +236,7 @@ module.exports = class AnnotationState extends PlayerComponent {
 
   // Returns annotation object given ID
   findAnnotation(id) {
-    return this.annotations.find(a => a.id == id);
+    return (this._annotationIndex && this._annotationIndex[id]) || this.annotations.find(a => a.id == id);
   }
 
   // Returns comment object given ID
@@ -228,8 +278,8 @@ module.exports = class AnnotationState extends PlayerComponent {
 
   // Use anywhere the annotation data changes
   // Cleans internal state data, updates player button, triggers configurable callback
-  stateChanged() {
-    this.sortAnnotations();
+  stateChanged(skipSort = false) {
+    if (!skipSort) this.sortAnnotations();
     this.rebuildAnnotationTimeMap();
     this.plugin.fire('onStateChanged', this.data);
   }

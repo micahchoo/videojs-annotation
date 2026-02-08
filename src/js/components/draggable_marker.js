@@ -73,7 +73,15 @@ module.exports = class DraggableMarker extends Marker {
   // On drag action, calculate new range and re-render marker
   onDrag(e) {
     const dragPercent = this.percentValFromXpos(e.pageX);
-    const secVal = parseInt(this.duration * dragPercent);
+    const frameRate = this.plugin.options.frameRate;
+    let secVal;
+    if (frameRate) {
+      const rawSec = this.duration * dragPercent;
+      const frame = Math.round(rawSec * frameRate);
+      secVal = frame / frameRate;
+    } else {
+      secVal = parseInt(this.duration * dragPercent);
+    }
 
     if (secVal > this.rangePin) {
       this.range = {
@@ -109,9 +117,17 @@ module.exports = class DraggableMarker extends Marker {
     this.$el.remove();
   }
 
-  // Move the video & marker start by some num seconds (pos or neg)
-  scrubStart(secondsChanged) {
-    const newStart = this.range.start + secondsChanged;
+  // Move the video & marker start by some amount (pos or neg)
+  // unit: 'second' (default) or 'frame'
+  scrubStart(amount, unit = 'second') {
+    const frameRate = this.plugin.options.frameRate;
+    let delta;
+    if (unit === 'frame' && frameRate) {
+      delta = amount / frameRate;
+    } else {
+      delta = amount;
+    }
+    const newStart = this.range.start + delta;
     this.currentTime = newStart;
     this.range.start = newStart;
     this.rangePin = newStart;

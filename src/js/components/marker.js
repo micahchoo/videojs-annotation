@@ -10,14 +10,17 @@ const markerTemplateName = 'marker';
 const markerWrapTemplateName = 'marker_wrap';
 
 module.exports = class Marker extends PlayerUIComponent {
-  constructor(player, range, comment = null) {
+  constructor(player, range, comment = null, markerClass = null, annotationType = null) {
     super(player);
     this.range = range;
     this.comment = comment;
+    this.markerClass = markerClass;
+    this.annotationType = annotationType;
     this.templateName = markerTemplateName;
 
     if (!this.$UI.markerWrap.length) {
       this.$UI.timeline.append(this.renderTemplate(markerWrapTemplateName));
+      this.invalidateUICache();
     }
   }
 
@@ -73,10 +76,14 @@ module.exports = class Marker extends PlayerUIComponent {
       zIndex,
       showTooltip: this.plugin.options.showMarkerShapeAndTooltips,
       tooltipRight: left > 50,
-      tooltipTime: Utils.humanTime(this.range),
+      tooltipTime: this.plugin.options.frameRate
+        ? Utils.humanTimeFrames(this.range, this.plugin.options.frameRate)
+        : Utils.humanTime(this.range),
       tooltipBody: !this.comment ? null : this.comment.body,
       rangeShow: !!this.range.end,
-      id: this.componentId
+      id: this.componentId,
+      markerClass: Utils.sanitizeCSSClassName(this.markerClass),
+      annotationType: Utils.sanitizeCSSClassName(this.annotationType) || 'default'
     };
   }
 

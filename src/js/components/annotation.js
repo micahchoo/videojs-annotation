@@ -15,6 +15,8 @@ module.exports = class Annotation extends PlayerUIComponent {
     this.id = data.id || this.componentId;
     this.range = data.range;
     this.shape = data.shape;
+    this.markerClass = data.markerClass || null;
+    this.annotationType = data.annotationType || 'default';
     this.secondsActive = this.buildSecondsActiveArray();
     this.buildComments(data);
     this.buildMarker();
@@ -29,7 +31,7 @@ module.exports = class Annotation extends PlayerUIComponent {
   }
 
   buildMarker() {
-    this.marker = new Marker(this.player, this.range, this.commentList.comments[0]);
+    this.marker = new Marker(this.player, this.range, this.commentList.comments[0], this.markerClass, this.annotationType);
     this.marker.render();
   }
 
@@ -43,11 +45,14 @@ module.exports = class Annotation extends PlayerUIComponent {
       id: this.id,
       range: this.range,
       shape: this.shape,
+      markerClass: this.markerClass,
+      annotationType: this.annotationType,
       comments: this.commentList.data
     };
   }
 
   bindEvents() {
+    this.marker.$el.off('click.vac-marker');
     this.marker.$el.on('click.vac-marker', e =>
       this.plugin.annotationState.openAnnotation(this, true)
     );
@@ -101,14 +106,22 @@ module.exports = class Annotation extends PlayerUIComponent {
   // Values used to build timeMap in AnnotationState
   buildSecondsActiveArray() {
     const seconds = [];
-    if (this.range.end) {
-      for (let i = this.range.start; i <= this.range.end; i++) {
-        seconds.push(i);
-      }
+    const frameRate = this.plugin.options.frameRate;
+    if (frameRate) {
+      // Frame-based: include every second that contains at least one active frame
+      const startSec = Math.floor(this.range.start);
+      const endSec = Math.ceil(this.range.end || this.range.start + 1 / frameRate);
+      for (let s = startSec; s <= endSec; s++) seconds.push(s);
     } else {
-      const { start } = this.range;
-      seconds.push(start);
-      if (start < this.duration) seconds.push(start + 1);
+      if (this.range.end) {
+        for (let i = this.range.start; i <= this.range.end; i++) {
+          seconds.push(i);
+        }
+      } else {
+        const { start } = this.range;
+        seconds.push(start);
+        if (start < this.duration) seconds.push(start + 1);
+      }
     }
     return seconds;
   }
@@ -124,14 +137,17 @@ module.exports = class Annotation extends PlayerUIComponent {
   }
 
   // Build a new annotation instance by passing in data for range, shape, comment, & plugin ref
-  static newFromData(range, shape, commentStr, plugin, id = null) {
+  static newFromData(range, shape, commentStr, plugin, id = null, markerClass = null, annotationType = null) {
     const comment = Comment.dataObj(commentStr, plugin);
-    if (range) range = Utils.parseIntObj(range);
+    const asFloat = !!plugin.options.frameRate;
+    if (range) range = Utils.parseIntObj(range, asFloat);
     if (shape) shape = Utils.parseIntObj(shape);
     const data = {
       id,
       range,
       shape,
+      markerClass,
+      annotationType,
       comments: [comment]
     };
     return new Annotation(data, plugin.player);
