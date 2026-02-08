@@ -9,6 +9,8 @@ Timeline annotation and commenting plugin for [Video.js](https://videojs.com/). 
 
 ![AnnotationComments Screenshot](test/screenshot.png)
 
+> This is AI coded and made for my use, do your due diligence before using
+
 ## What changed from upstream
 
 - Dropped jQuery and Handlebars — vanilla DOM helpers and template literals instead
